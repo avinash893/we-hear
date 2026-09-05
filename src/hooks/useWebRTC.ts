@@ -21,9 +21,10 @@ interface UseWebRTCOptions {
   userId: string;
   role: "CLIENT" | "LISTENER";
   onCallEnded?: (endedByRole: string) => void;
+  onRecordingWarning?: (warning: { deviceType: string; timestamp: number }) => void;
 }
 
-export function useWebRTC({ sessionCode, userId, role, onCallEnded }: UseWebRTCOptions) {
+export function useWebRTC({ sessionCode, userId, role, onCallEnded, onRecordingWarning }: UseWebRTCOptions) {
   const [connectionState, setConnectionState] = useState<ConnectionState>("INITIALIZING");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -180,6 +181,10 @@ export function useWebRTC({ sessionCode, userId, role, onCallEnded }: UseWebRTCO
           setPeerMediaState(state);
         });
 
+        socket.on("recording-device-warning", (warning) => {
+          if (onRecordingWarning) onRecordingWarning(warning);
+        });
+
         socket.on("peer-disconnected", ({ graceSeconds }) => {
           setConnectionState("PEER_DISCONNECTED");
         });
@@ -256,6 +261,17 @@ export function useWebRTC({ sessionCode, userId, role, onCallEnded }: UseWebRTCO
     if (onCallEnded) onCallEnded(role);
   }, [sessionCode, role, onCallEnded]);
 
+  // Dispatch recording device detection alert to other peer
+  const notifyDeviceDetected = useCallback(
+    (deviceType: string) => {
+      socketRef.current?.emit("recording-device-alert", {
+        sessionCode,
+        deviceType,
+      });
+    },
+    [sessionCode]
+  );
+
   return {
     connectionState,
     errorMessage,
@@ -267,5 +283,6 @@ export function useWebRTC({ sessionCode, userId, role, onCallEnded }: UseWebRTCO
     toggleAudio,
     toggleVideo,
     endCall,
+    notifyDeviceDetected,
   };
 }

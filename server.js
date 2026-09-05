@@ -89,6 +89,13 @@ app.prepare().then(() => {
       socket.to(sessionCode).emit("peer-media-state", { isAudioMuted, isVideoOff });
     });
 
+    socket.on("recording-device-alert", ({ sessionCode, deviceType }) => {
+      socket.to(sessionCode).emit("recording-device-warning", {
+        deviceType: deviceType || "cell phone",
+        timestamp: Date.now(),
+      });
+    });
+
     socket.on("end-call", ({ sessionCode, endedByRole }) => {
       if (currentRoomCode) {
         io.to(currentRoomCode).emit("call-ended", {

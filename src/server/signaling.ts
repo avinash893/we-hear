@@ -128,6 +128,13 @@ export function setupSignaling(httpServer: HttpServer): SocketIOServer {
       socket.to(data.sessionCode).emit("peer-media-state", data);
     });
 
+    socket.on("recording-device-alert", (data: { sessionCode: string; deviceType: string }) => {
+      socket.to(data.sessionCode).emit("recording-device-warning", {
+        deviceType: data.deviceType || "cell phone",
+        timestamp: Date.now(),
+      });
+    });
+
     socket.on("heartbeat", (data: { sessionCode: string }) => {
       if (currentRoomCode && currentUserId && activeRooms.has(currentRoomCode)) {
         const participant = activeRooms.get(currentRoomCode)?.get(currentUserId);

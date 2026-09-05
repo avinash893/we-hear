@@ -17,8 +17,12 @@ import {
   Loader2,
   ArrowLeft,
   Volume2,
+  AlertTriangle,
 } from "lucide-react";
 import { useWebRTC, ConnectionState } from "@/hooks/useWebRTC";
+import { usePrivacyShield } from "@/hooks/usePrivacyShield";
+import { DeviceDetector } from "@/lib/security/deviceDetector";
+import ForensicWatermark from "@/components/calling/ForensicWatermark";
 import ReportModal from "@/components/safety/ReportModal";
 import Link from "next/link";
 
@@ -43,6 +47,19 @@ export default function CallPage() {
     endedByRole?: string;
     isEarningEligible?: boolean;
   }>({ ended: false });
+
+  // Anti-Recording Privacy Shield (Detects screenshots, window blur, capture tools)
+  const privacyShield = usePrivacyShield();
+
+  // Spying / Phone Camera Warning State
+  const [recordingDeviceAlert, setRecordingDeviceAlert] = useState<{
+    deviceType: string;
+    timestamp: number;
+  } | null>(null);
+
+  const handleRecordingWarning = (warning: { deviceType: string; timestamp: number }) => {
+    setRecordingDeviceAlert(warning);
+  };
 
   // Fetch session details securely
   useEffect(() => {
@@ -103,12 +120,29 @@ export default function CallPage() {
     toggleAudio,
     toggleVideo,
     endCall,
+    notifyDeviceDetected,
   } = useWebRTC({
     sessionCode,
     userId,
     role,
     onCallEnded: handleCallEndedCallback,
+    onRecordingWarning: handleRecordingWarning,
   });
+
+  // Client-side AI / Computer Vision device detector scanning remote peer's camera feed
+  useEffect(() => {
+    if (connectionState === "CONNECTED" && remoteVideoRef.current) {
+      const detector = new DeviceDetector();
+      detector.start(remoteVideoRef.current, (result) => {
+        // Dispatches real-time alert through WebSocket to the other user
+        notifyDeviceDetected(result.deviceType);
+      }, 1500);
+
+      return () => {
+        detector.stop();
+      };
+    }
+  }, [connectionState, notifyDeviceDetected, remoteVideoRef]);
 
   // Authoritative 30-minute countdown timer
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(30 * 60);
@@ -284,12 +318,78 @@ export default function CallPage() {
 
       {/* Main Video Arena */}
       <div className="flex-1 relative flex items-center justify-center bg-slate-950">
+        {/* Dynamic Forensic Watermark (Deters phone photographs / screen recordings) */}
+        <ForensicWatermark sessionCode={sessionCode} peerNickname={sessionInfo.peerNickname} />
+
+        {/* Real-time Phone Camera / Spying Warning Alert Modal */}
+        {recordingDeviceAlert && (
+          <div className="absolute top-20 inset-x-4 z-40 max-w-md mx-auto bg-red-950/95 border-2 border-red-500 rounded-2xl p-4 shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-red-800 text-white shrink-0 animate-pulse">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-red-100">
+                  Warning: Potential Recording Device Detected!
+                </h3>
+                <p className="text-xs text-red-200/90 leading-relaxed">
+                  Our security shield detected a mobile phone or recording device in your peer&apos;s camera view. For your safety, do not disclose personal details.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-red-800/60">
+              <button
+                type="button"
+                onClick={() => {
+                  toggleVideo();
+                  setRecordingDeviceAlert(null);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium"
+              >
+                Turn Off My Camera
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  endCall();
+                  setIsReportModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+              >
+                End & Report
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecordingDeviceAlert(null)}
+                className="px-2.5 py-1.5 text-xs text-red-300 hover:text-white"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Anti-Screen-Recording Privacy Shield Overlay */}
+        {privacyShield.isShieldActive && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-black/85 backdrop-blur-xl text-center space-y-3 animate-in fade-in">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-semibold text-white">Privacy Shield Active</h4>
+            <p className="text-xs text-slate-300 max-w-sm leading-relaxed">
+              {privacyShield.shieldReason || "Video is protected against screen capture and recording tools."}
+            </p>
+          </div>
+        )}
+
         {/* Remote Video (Fills Viewport) */}
         <video
           ref={remoteVideoRef}
           autoPlay
           playsInline
-          className={`w-full h-full object-cover transition-opacity duration-300 ${
+          className={`w-full h-full object-cover transition-all duration-300 ${
+            privacyShield.isShieldActive ? "filter blur-3xl opacity-10" : ""
+          } ${
             connectionState === "CONNECTED" && !peerMediaState.isVideoOff ? "opacity-100" : "opacity-0"
           }`}
         />
