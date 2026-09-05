@@ -12,16 +12,52 @@ const handle = app.getRequestHandler();
 // Map of active rooms: roomCode -> Map(userId -> participant)
 const activeRooms = new Map();
 
+function isOriginAllowed(origin, callback) {
+  // If same-origin, direct client, or no origin header, allow
+  if (!origin) {
+    return callback(null, true);
+  }
+
+  const allowedOrigins = [
+    process.env.NEXTAUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ].filter(Boolean);
+
+  const isAllowed = allowedOrigins.some((allowed) => {
+    try {
+      const allowedUrl = new URL(allowed);
+      const originUrl = new URL(origin);
+      return originUrl.origin === allowedUrl.origin;
+    } catch {
+      return origin === allowed || origin.startsWith(allowed);
+    }
+  });
+
+  if (isAllowed || process.env.NODE_ENV !== "production") {
+    callback(null, true);
+  } else {
+    callback(new Error("CORS origin not allowed by security policy"));
+  }
+}
+
 app.prepare().then(() => {
   const httpServer = http.createServer((req, res) => {
     handle(req, res);
   });
 
+  // Cloud load balancer timeout compatibility (Cloudflare, AWS ALB, Render)
+  httpServer.keepAliveTimeout = 65000;
+  httpServer.headersTimeout = 66000;
+
   const io = new Server(httpServer, {
     cors: {
-      origin: "*",
+      origin: isOriginAllowed,
       methods: ["GET", "POST"],
+      credentials: true,
     },
+    maxHttpBufferSize: 65536, // 64 KB max packet size to prevent DoS buffer attacks
     pingInterval: 10000,
     pingTimeout: 5000,
   });
@@ -146,7 +182,41 @@ app.prepare().then(() => {
     });
   });
 
+  // Garbage collection: purge stale rooms inactive for >45 minutes
+  const roomCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    const maxRoomAgeMs = 45 * 60 * 1000;
+    for (const [code, participants] of activeRooms.entries()) {
+      let oldestJoin = now;
+      for (const p of participants.values()) {
+        if (p.joinedAt && p.joinedAt < oldestJoin) oldestJoin = p.joinedAt;
+      }
+      if (now - oldestJoin > maxRoomAgeMs || participants.size === 0) {
+        activeRooms.delete(code);
+      }
+    }
+  }, 5 * 60 * 1000);
+
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });
+
+  // Graceful shutdown handling (Render, Docker, Kubernetes, AWS)
+  const shutdown = (signal) => {
+    console.log(`Received ${signal}. Gracefully stopping HTTP and WebSocket server...`);
+    clearInterval(roomCleanupInterval);
+    io.close(() => {
+      httpServer.close(() => {
+        console.log("We Hear server closed cleanly.");
+        process.exit(0);
+      });
+    });
+    setTimeout(() => {
+      console.error("Forcing shutdown after 10s timeout.");
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 });

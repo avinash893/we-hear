@@ -1,21 +1,23 @@
 interface RateLimitRecord {
   timestamps: number[];
+  lastSeen: number;
 }
 
-// In-memory sliding window bucket store
+// Memory-bounded sliding window store (Max 10,000 active IP/user keys to prevent heap exhaustion)
+const MAX_STORE_ENTRIES = 10000;
 const rateLimitStore = new Map<string, RateLimitRecord>();
 
-// Cleanup stale entries every 5 minutes
+// Cleanup stale entries every 3 minutes
 if (typeof setInterval !== "undefined") {
   setInterval(() => {
     const now = Date.now();
     rateLimitStore.forEach((record, key) => {
       record.timestamps = record.timestamps.filter((t: number) => now - t < 15 * 60 * 1000);
-      if (record.timestamps.length === 0) {
+      if (record.timestamps.length === 0 || now - record.lastSeen > 20 * 60 * 1000) {
         rateLimitStore.delete(key);
       }
     });
-  }, 5 * 60 * 1000);
+  }, 3 * 60 * 1000);
 }
 
 export interface RateLimitResult {
@@ -26,11 +28,11 @@ export interface RateLimitResult {
 }
 
 /**
- * Checks and records rate limit for an identifier (e.g. IP, user ID)
+ * Checks and records rate limit for an identifier with memory bounding
  */
 export function checkRateLimit(
   identifier: string,
-  action: "auth" | "payment" | "report" | "availability" | "general",
+  action: "auth" | "payment" | "report" | "availability" | "general" | (string & {}),
   maxRequests = 60,
   windowSeconds = 60
 ): RateLimitResult {
@@ -39,13 +41,23 @@ export function checkRateLimit(
   const windowMs = windowSeconds * 1000;
   const threshold = now - windowMs;
 
+  // Memory ceiling protection: If store hits capacity under high traffic or DDoS, prune oldest entry
+  if (!rateLimitStore.has(key) && rateLimitStore.size >= MAX_STORE_ENTRIES) {
+    const firstKey = rateLimitStore.keys().next().value;
+    if (firstKey) {
+      rateLimitStore.delete(firstKey);
+    }
+  }
+
   if (!rateLimitStore.has(key)) {
-    rateLimitStore.set(key, { timestamps: [] });
+    rateLimitStore.set(key, { timestamps: [], lastSeen: now });
   }
 
   const record = rateLimitStore.get(key)!;
+  record.lastSeen = now;
+
   // Keep only timestamps within window
-  record.timestamps = record.timestamps.filter((t) => t > threshold);
+  record.timestamps = record.timestamps.filter((t: number) => t > threshold);
 
   if (record.timestamps.length >= maxRequests) {
     const oldestTimestamp = record.timestamps[0];
@@ -68,16 +80,41 @@ export function checkRateLimit(
 }
 
 /**
- * Extracts client IP from standard proxy headers
+ * Robust, trusted proxy IP extraction (Cloudflare, AWS ALB, Render, Fly.io, Nginx)
  */
 export function getClientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
+  // 1. Cloudflare True Client IP
+  const cfIp = req.headers.get("cf-connecting-ip");
+  if (cfIp && isValidIp(cfIp.trim())) {
+    return cfIp.trim();
   }
+
+  // 2. Real-IP header from reverse proxy
   const realIp = req.headers.get("x-real-ip");
-  if (realIp) {
+  if (realIp && isValidIp(realIp.trim())) {
     return realIp.trim();
   }
+
+  // 3. X-Forwarded-For (take the first client IP in the chain)
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const clientIp = forwarded.split(",")[0].trim();
+    if (isValidIp(clientIp)) {
+      return clientIp;
+    }
+  }
+
   return "127.0.0.1";
+}
+
+/**
+ * Basic IPv4 / IPv6 format sanity validation
+ */
+function isValidIp(ip: string): boolean {
+  if (!ip || ip.length > 45) return false;
+  // IPv4 format: 1.2.3.4
+  const isIpv4 = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(ip);
+  // IPv6 format (simplified check)
+  const isIpv6 = ip.includes(":") && /^[0-9a-fA-F:]+$/.test(ip);
+  return isIpv4 || isIpv6;
 }

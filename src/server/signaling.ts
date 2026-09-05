@@ -2,6 +2,7 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import { Server as HttpServer } from "http";
 import { prisma } from "../lib/db";
 import { verifyCallToken } from "../lib/security/callToken";
+import { isAllowedOrigin } from "../lib/security/originCheck";
 
 interface RoomParticipant {
   socketId: string;
@@ -14,12 +15,49 @@ interface RoomParticipant {
 // Memory map of active signaling rooms: sessionCode -> Set of participants
 const activeRooms = new Map<string, Map<string, RoomParticipant>>();
 
+// Periodic stale room garbage collection (calls older than 45 min or empty)
+if (typeof setInterval !== "undefined") {
+  setInterval(() => {
+    const now = Date.now();
+    const maxRoomAgeMs = 45 * 60 * 1000;
+    activeRooms.forEach((participants, code) => {
+      let oldest = now;
+      participants.forEach((p) => {
+        const joinTime = p.joinedAt.getTime();
+        if (joinTime < oldest) oldest = joinTime;
+      });
+      if (now - oldest > maxRoomAgeMs || participants.size === 0) {
+        activeRooms.delete(code);
+      }
+    });
+  }, 5 * 60 * 1000);
+}
+
+function isSignalingOriginAllowed(origin: string | undefined, callback: (err: Error | null, success?: boolean) => void) {
+  const allowed = [
+    process.env.NEXTAUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ].filter(Boolean) as string[];
+
+  const isAllowed = isAllowedOrigin(origin, allowed, process.env.NODE_ENV !== "production");
+
+  if (isAllowed) {
+    callback(null, true);
+  } else {
+    callback(new Error("CORS origin not allowed by security policy"));
+  }
+}
+
 export function setupSignaling(httpServer: HttpServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: "*",
+      origin: isSignalingOriginAllowed,
       methods: ["GET", "POST"],
+      credentials: true,
     },
+    maxHttpBufferSize: 65536, // 64 KB limit
     pingInterval: 10000,
     pingTimeout: 5000,
   });
