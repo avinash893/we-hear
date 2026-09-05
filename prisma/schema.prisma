@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String            @id @default(cuid())
+  email          String?           @unique
+  googleId       String?           @unique
+  ageConfirmed   Boolean           @default(false)
+  isDestroyed    Boolean           @default(false)
+  destroyedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  anonymousProfile AnonymousProfile?
+  listenerProfile  ListenerProfile?
+  clientSessions   CallSession[]     @relation("ClientSessions")
+  listenerSessions CallSession[]     @relation("ListenerSessions")
+  payments         Payment[]
+  earnings         ListenerEarning[]
+  subscriptions    Subscription[]
+  reportsSubmitted Report[]          @relation("ReportsSubmitted")
+  reportsReceived  Report[]          @relation("ReportsReceived")
+  blocksCreated    Block[]           @relation("BlocksCreated")
+  blocksReceived   Block[]           @relation("BlocksReceived")
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@index([googleId])
+}
+
+model AnonymousProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  anonymousId String   @unique // usr_8f32a7b1...
+  nickname    String   // e.g. "Quiet Sparrow"
+  avatarSeed  String   // deterministic seed for calm nature avatar
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([anonymousId])
+}
+
+model ListenerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  isAvailable     Boolean  @default(false)
+  lastActiveAt    DateTime @default(now())
+  totalCalls      Int      @default(0)
+  totalEarnedInr  Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isAvailable])
+}
+
+model CallSession {
+  id                String    @id @default(cuid())
+  sessionCode       String    @unique
+  clientId          String
+  listenerId        String?
+  status            String    @default("PAYMENT_PENDING") // PAYMENT_PENDING, PAYMENT_CONFIRMED, WAITING_FOR_LISTENER, MATCHED, CALL_STARTED, CALL_COMPLETED, CALL_ENDED_BY_CLIENT, CALL_ENDED_BY_LISTENER, REFUND_PENDING, REFUNDED, EXPIRED
+  priceInr          Int       @default(20)
+  listenerEarningInr Int      @default(15)
+  matchStartedAt    DateTime?
+  matchedAt         DateTime?
+  callStartedAt     DateTime?
+  callEndedAt       DateTime?
+  callEndedBy       String?   // CLIENT, LISTENER, SYSTEM_TIMEOUT
+  durationSeconds   Int       @default(0)
+  isEarningEligible Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  client   User             @relation("ClientSessions", fields: [clientId], references: [id], onDelete: Cascade)
+  listener User?            @relation("ListenerSessions", fields: [listenerId], references: [id], onDelete: SetNull)
+  payment  Payment?
+  earning  ListenerEarning?
+  refund   Refund?
+  reports  Report[]
+
+  @@index([clientId])
+  @@index([listenerId])
+  @@index([status])
+  @@index([sessionCode])
+}
+
+model Payment {
+  id             String    @id @default(cuid())
+  sessionId      String?   @unique
+  userId         String
+  amountInr      Int
+  provider       String    @default("MOCK") // RAZORPAY, MOCK
+  orderId        String    @unique
+  paymentId      String?   @unique
+  signature      String?
+  status         String    @default("PENDING") // PENDING, SUCCESS, FAILED, REFUNDED
+  idempotencyKey String    @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session CallSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  refund  Refund?
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([paymentId])
+  @@index([idempotencyKey])
+}
+
+model Refund {
+  id               String   @id @default(cuid())
+  paymentId        String   @unique
+  sessionId        String   @unique
+  amountInr        Int
+  reason           String   // UNMATCHED_24H, CANCELLED, SYSTEM
+  providerRefundId String?
+  status           String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  payment Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  session CallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model ListenerEarning {
+  id         String    @id @default(cuid())
+  listenerId String
+  sessionId  String    @unique // Strict 1-to-1 idempotency: one earning per session
+  amountInr  Int       @default(15)
+  status     String    @default("AVAILABLE") // AVAILABLE, PENDING, PAID_OUT
+  eligibleAt DateTime  @default(now())
+  paidAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  listener User        @relation(fields: [listenerId], references: [id], onDelete: Cascade)
+  session  CallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([listenerId])
+  @@index([status])
+}
+
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String
+  role             String    // CLIENT, LISTENER
+  planDays         Int       // 15, 30, 60
+  amountInr        Int
+  status           String    @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED
+  startsAt         DateTime  @default(now())
+  endsAt           DateTime
+  paymentId        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Report {
+  id             String   @id @default(cuid())
+  reporterUserId String
+  reportedUserId String
+  sessionId      String?
+  reason         String   // HARASSMENT, THREAT, SEXUAL_MISCONDUCT, SCAM, SOLICITING_PII, OTHER
+  description    String?
+  status         String   @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, RESOLVED, DISMISSED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  reporter User         @relation("ReportsSubmitted", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  reported User         @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  session  CallSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([reporterUserId])
+  @@index([reportedUserId])
+}
+
+model Block {
+  id            String   @id @default(cuid())
+  blockerUserId String
+  blockedUserId String
+  createdAt     DateTime @default(now())
+
+  blocker User @relation("BlocksCreated", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksReceived", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+}
