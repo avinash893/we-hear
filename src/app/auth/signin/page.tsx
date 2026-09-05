@@ -2,11 +2,13 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { HeartHandshake, ShieldCheck, CheckSquare, Square, ArrowRight } from "lucide-react";
+import { HeartHandshake, ShieldCheck, CheckSquare, Square, ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
+import CaptchaWidget from "@/components/security/CaptchaWidget";
 
 export default function SignInPage() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [captchaData, setCaptchaData] = useState<{ token: string; answer: string } | null>(null);
   const [devEmail, setDevEmail] = useState("speaker@example.local");
   const [devRole, setDevRole] = useState("speaker");
   const [loading, setLoading] = useState(false);
@@ -16,6 +18,10 @@ export default function SignInPage() {
       alert("Please confirm you are at least 18 years old to use We Hear.");
       return;
     }
+    if (!captchaData?.answer) {
+      alert("Please complete the human verification puzzle below.");
+      return;
+    }
     setLoading(true);
     signIn("google", { callbackUrl: devRole === "listener" ? "/listen" : "/talk" });
   };
@@ -23,6 +29,10 @@ export default function SignInPage() {
   const handleDevSignIn = (role: "speaker" | "listener") => {
     if (!ageConfirmed) {
       alert("Please confirm you are at least 18 years old to use We Hear.");
+      return;
+    }
+    if (!captchaData?.answer) {
+      alert("Please complete the human verification puzzle below.");
       return;
     }
     setLoading(true);
@@ -79,14 +89,17 @@ export default function SignInPage() {
           </p>
         </div>
 
+        {/* Cryptographic Human Verification Widget */}
+        <CaptchaWidget onValidated={setCaptchaData} className="mb-6" />
+
         {/* Google OAuth Button */}
         <div className="space-y-4">
           <button
             type="button"
-            disabled={!ageConfirmed || loading}
+            disabled={!ageConfirmed || !captchaData?.answer || loading}
             onClick={handleGoogleSignIn}
             className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-slate-300 font-medium text-sm text-slate-700 transition-all ${
-              ageConfirmed && !loading
+              ageConfirmed && captchaData?.answer && !loading
                 ? "bg-white hover:bg-slate-50 shadow-xs cursor-pointer"
                 : "bg-slate-100 opacity-60 cursor-not-allowed"
             }`}
@@ -122,18 +135,18 @@ export default function SignInPage() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                disabled={!ageConfirmed || loading}
+                disabled={!ageConfirmed || !captchaData?.answer || loading}
                 onClick={() => handleDevSignIn("speaker")}
-                className="py-2.5 px-3 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-800 text-xs font-medium border border-primary-200 transition-colors flex items-center justify-center gap-1"
+                className="py-2.5 px-3 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-800 text-xs font-medium border border-primary-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>Login as Speaker</span>
                 <ArrowRight className="w-3 h-3" />
               </button>
               <button
                 type="button"
-                disabled={!ageConfirmed || loading}
+                disabled={!ageConfirmed || !captchaData?.answer || loading}
                 onClick={() => handleDevSignIn("listener")}
-                className="py-2.5 px-3 rounded-lg bg-warm-100 hover:bg-warm-200 text-warm-900 text-xs font-medium border border-warm-300 transition-colors flex items-center justify-center gap-1"
+                className="py-2.5 px-3 rounded-lg bg-warm-100 hover:bg-warm-200 text-warm-900 text-xs font-medium border border-warm-300 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>Login as Listener</span>
                 <ArrowRight className="w-3 h-3" />

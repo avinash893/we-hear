@@ -3,16 +3,40 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import { prisma } from "@/lib/db";
 import { paymentService } from "@/lib/payments/service";
+import { checkRateLimit, getClientIp } from "@/lib/security/rateLimiter";
+import { verifyCaptchaSolution } from "@/lib/security/captcha";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(ip, "payment", 10, 15 * 60);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { message: `Rate limit exceeded. Please try again in ${rateLimit.resetSeconds} seconds.` },
+        { status: 429 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const userId = session.user.id;
+
+    // Optional CAPTCHA verification if provided
+    try {
+      const body = await req.clone().json();
+      if (body.captchaToken && body.captchaAnswer) {
+        const isValid = verifyCaptchaSolution(body.captchaAnswer, body.captchaToken);
+        if (!isValid) {
+          return NextResponse.json({ message: "Security verification failed. Please check the answer." }, { status: 400 });
+        }
+      }
+    } catch {
+      // Body may be empty if no captcha payload sent
+    }
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { anonymousProfile: true },

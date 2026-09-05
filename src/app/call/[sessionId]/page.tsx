@@ -38,6 +38,7 @@ export default function CallPage() {
     callStartedAt: string;
     durationMinutes: number;
     isAlreadyEnded: boolean;
+    callToken?: string;
   } | null>(null);
 
   const [loadingInfo, setLoadingInfo] = useState(true);
@@ -125,6 +126,7 @@ export default function CallPage() {
     sessionCode,
     userId,
     role,
+    callToken: sessionInfo?.callToken,
     onCallEnded: handleCallEndedCallback,
     onRecordingWarning: handleRecordingWarning,
   });

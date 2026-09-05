@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import { prisma } from "@/lib/db";
+import { checkRateLimit } from "@/lib/security/rateLimiter";
+import { sanitizeText, isValidCode } from "@/lib/security/sanitize";
 
 export async function POST(req: Request) {
   try {
@@ -11,10 +13,20 @@ export async function POST(req: Request) {
     }
 
     const reporterUserId = session.user.id;
+
+    // Rate limit: max 5 reports per 10 minutes
+    const limit = checkRateLimit(reporterUserId, "report", 5, 10 * 60);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { message: `Too many reports submitted. Please wait ${limit.resetSeconds}s.` },
+        { status: 429 }
+      );
+    }
+
     const { sessionCode, reason, description } = await req.json();
 
-    if (!sessionCode || !reason) {
-      return NextResponse.json({ message: "Missing required report parameters" }, { status: 400 });
+    if (!sessionCode || !reason || !isValidCode(sessionCode)) {
+      return NextResponse.json({ message: "Missing or invalid report parameters" }, { status: 400 });
     }
 
     const callSession = await prisma.callSession.findUnique({
@@ -33,14 +45,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "No peer found to report" }, { status: 400 });
     }
 
-    // Record report in database
+    // Record sanitized report in database
     const report = await prisma.report.create({
       data: {
         reporterUserId,
         reportedUserId,
         sessionId: callSession.id,
-        reason,
-        description: description?.substring(0, 1000) || "",
+        reason: sanitizeText(reason, 64),
+        description: sanitizeText(description, 1000),
         status: "SUBMITTED",
       },
     });

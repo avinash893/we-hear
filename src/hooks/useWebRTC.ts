@@ -20,11 +20,12 @@ interface UseWebRTCOptions {
   sessionCode: string;
   userId: string;
   role: "CLIENT" | "LISTENER";
+  callToken?: string;
   onCallEnded?: (endedByRole: string) => void;
   onRecordingWarning?: (warning: { deviceType: string; timestamp: number }) => void;
 }
 
-export function useWebRTC({ sessionCode, userId, role, onCallEnded, onRecordingWarning }: UseWebRTCOptions) {
+export function useWebRTC({ sessionCode, userId, role, callToken, onCallEnded, onRecordingWarning }: UseWebRTCOptions) {
   const [connectionState, setConnectionState] = useState<ConnectionState>("INITIALIZING");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -124,7 +125,7 @@ export function useWebRTC({ sessionCode, userId, role, onCallEnded, onRecordingW
 
         // Socket signaling listeners
         socket.on("connect", () => {
-          socket.emit("join-room", { sessionCode, userId, role });
+          socket.emit("join-room", { sessionCode, callToken, userId, role });
           setConnectionState("WAITING_FOR_PEER");
         });
 

@@ -31,8 +31,31 @@ app.prepare().then(() => {
     let currentUserRole = null;
     let currentUserId = null;
 
-    socket.on("join-room", ({ sessionCode, userId, role }) => {
+    socket.on("join-room", ({ sessionCode, callToken, userId, role }) => {
       if (!sessionCode || !userId) return;
+
+      // Cryptographic room token verification
+      const tokenSecret = process.env.NEXTAUTH_SECRET || "we-hear-call-token-secure-salt-key-123456";
+      if (callToken) {
+        try {
+          const decoded = Buffer.from(callToken, "base64").toString("utf8");
+          const [tCode, tUser, tRole, tExp, tSig] = decoded.split(":");
+          if (Date.now() > parseInt(tExp, 10) || tCode !== sessionCode || tUser !== userId) {
+            socket.emit("error-message", { message: "Security authorization error: Token mismatch or expired." });
+            return;
+          }
+          const crypto = require("crypto");
+          const payload = `${tCode}:${tUser}:${tRole}:${tExp}`;
+          const expectedSig = crypto.createHmac("sha256", tokenSecret).update(payload).digest("hex");
+          if (!crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(tSig))) {
+            socket.emit("error-message", { message: "Security error: Tampered room token detected." });
+            return;
+          }
+        } catch (e) {
+          socket.emit("error-message", { message: "Security error: Malformed room token." });
+          return;
+        }
+      }
 
       currentRoomCode = sessionCode;
       currentUserId = userId;

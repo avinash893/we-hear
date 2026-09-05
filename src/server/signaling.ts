@@ -1,6 +1,7 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { Server as HttpServer } from "http";
 import { prisma } from "../lib/db";
+import { verifyCallToken } from "../lib/security/callToken";
 
 interface RoomParticipant {
   socketId: string;
@@ -28,10 +29,19 @@ export function setupSignaling(httpServer: HttpServer): SocketIOServer {
     let currentUserRole: ("CLIENT" | "LISTENER") | null = null;
     let currentUserId: string | null = null;
 
-    socket.on("join-room", async (data: { sessionCode: string; userId: string }) => {
+    socket.on("join-room", async (data: { sessionCode: string; userId: string; callToken?: string }) => {
       try {
-        const { sessionCode, userId } = data;
+        const { sessionCode, userId, callToken } = data;
         if (!sessionCode || !userId) return;
+
+        // Verify cryptographic call token if provided
+        if (callToken) {
+          const check = verifyCallToken(callToken, sessionCode, userId);
+          if (!check.valid) {
+            socket.emit("error-message", { message: "Security error: Invalid room token." });
+            return;
+          }
+        }
 
         // Authorize participant against database
         const session = await prisma.callSession.findUnique({

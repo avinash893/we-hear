@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import { prisma } from "@/lib/db";
+import { generateCallToken } from "@/lib/security/callToken";
 
 export const dynamic = "force-dynamic";
 
@@ -42,11 +43,16 @@ export async function GET(req: Request) {
     // Identify peer's anonymous nickname (STRICT: NEVER EXPOSE EMAIL OR GOOGLE ID)
     const peerUser = isClient ? callSession.listener : callSession.client;
     const peerNickname = peerUser?.anonymousProfile?.nickname || "Anonymous Peer";
+    const role = isClient ? "CLIENT" : "LISTENER";
+
+    // Issue cryptographic room token for WebRTC signaling authorization
+    const callToken = generateCallToken(callSession.sessionCode, userId, role);
 
     return NextResponse.json({
       sessionId: callSession.id,
       sessionCode: callSession.sessionCode,
-      role: isClient ? "CLIENT" : "LISTENER",
+      callToken,
+      role,
       peerNickname,
       status: callSession.status,
       callStartedAt: callSession.callStartedAt || callSession.createdAt,
