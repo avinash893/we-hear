@@ -22,32 +22,60 @@ export async function POST(req: Request) {
       const paymentId = event.payload?.payment?.entity?.id;
 
       if (orderId) {
+        // 1. Check if order belongs to a CallSession payment
         const existingPayment = await prisma.payment.findUnique({
           where: { orderId },
           include: { session: true },
         });
 
-        // Idempotency: If already marked success, safely acknowledge without re-running
-        if (existingPayment && existingPayment.status !== "SUCCESS") {
-          await prisma.payment.update({
-            where: { orderId },
-            data: {
-              status: "SUCCESS",
-              paymentId: paymentId || existingPayment.paymentId,
-            },
-          });
-
-          if (existingPayment.sessionId) {
-            await prisma.callSession.update({
-              where: { id: existingPayment.sessionId },
+        if (existingPayment) {
+          // Atomic Compare-And-Swap: update only if not already marked SUCCESS
+          await prisma.$transaction(async (tx) => {
+            const paymentUpdate = await tx.payment.updateMany({
+              where: {
+                orderId,
+                status: { not: "SUCCESS" },
+              },
               data: {
-                status: "WAITING_FOR_LISTENER",
-                matchStartedAt: new Date(),
+                status: "SUCCESS",
+                paymentId: paymentId || existingPayment.paymentId,
               },
             });
 
-            // Attempt match
-            await attemptMatch(existingPayment.sessionId);
+            if (paymentUpdate.count > 0 && existingPayment.sessionId) {
+              // Only advance session if currently PAYMENT_PENDING
+              await tx.callSession.updateMany({
+                where: {
+                  id: existingPayment.sessionId,
+                  status: "PAYMENT_PENDING",
+                },
+                data: {
+                  status: "WAITING_FOR_LISTENER",
+                  matchStartedAt: new Date(),
+                },
+              });
+
+              // Attempt match
+              await attemptMatch(existingPayment.sessionId);
+            }
+          });
+        } else {
+          // 2. Check if order belongs to a Subscription
+          const existingSubscription = await prisma.subscription.findUnique({
+            where: { orderId },
+          });
+
+          if (existingSubscription) {
+            await prisma.subscription.updateMany({
+              where: {
+                orderId,
+                status: { not: "ACTIVE" },
+              },
+              data: {
+                status: "ACTIVE",
+                paymentId: paymentId || existingSubscription.paymentId,
+              },
+            });
           }
         }
       }

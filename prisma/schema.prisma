@@ -24,6 +24,7 @@ model User {
   payments         Payment[]
   earnings         ListenerEarning[]
   subscriptions    Subscription[]
+  payoutRequests   PayoutRequest[]
   reportsSubmitted Report[]          @relation("ReportsSubmitted")
   reportsReceived  Report[]          @relation("ReportsReceived")
   blocksCreated    Block[]           @relation("BlocksCreated")
@@ -163,9 +164,10 @@ model Subscription {
   role             String    // CLIENT, LISTENER
   planDays         Int       // 15, 30, 60
   amountInr        Int
-  status           String    @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED
+  status           String    @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED, PENDING
   startsAt         DateTime  @default(now())
   endsAt           DateTime
+  orderId          String?   @unique
   paymentId        String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -173,6 +175,23 @@ model Subscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
+  @@index([orderId])
+}
+
+model PayoutRequest {
+  id             String    @id @default(cuid())
+  listenerId     String
+  amountInr      Int
+  upiId          String
+  status         String    @default("SUBMITTED") // SUBMITTED, PROCESSING, COMPLETED, FAILED
+  referenceId    String?
+  requestedAt    DateTime  @default(now())
+  processedAt    DateTime?
+
+  listener User @relation(fields: [listenerId], references: [id], onDelete: Cascade)
+
+  @@index([listenerId])
   @@index([status])
 }
 

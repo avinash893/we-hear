@@ -67,10 +67,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Invalid payment signature" }, { status: 400 });
     }
 
-    // Update payment and session in database transaction
+    // Update payment and session in database transaction with atomic Compare-And-Swap (CAS)
+    let newlyProcessed = false;
     await prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { orderId },
+      const paymentUpdate = await tx.payment.updateMany({
+        where: {
+          orderId,
+          status: { not: "SUCCESS" },
+        },
         data: {
           status: "SUCCESS",
           paymentId: paymentId || `pay_mock_${Date.now()}`,
@@ -78,13 +82,20 @@ export async function POST(req: Request) {
         },
       });
 
-      await tx.callSession.update({
-        where: { id: sessionId },
-        data: {
-          status: "WAITING_FOR_LISTENER",
-          matchStartedAt: new Date(),
-        },
-      });
+      if (paymentUpdate.count > 0) {
+        newlyProcessed = true;
+        // Only advance session if it is still PAYMENT_PENDING to prevent overwriting MATCHED state
+        await tx.callSession.updateMany({
+          where: {
+            id: sessionId,
+            status: "PAYMENT_PENDING",
+          },
+          data: {
+            status: "WAITING_FOR_LISTENER",
+            matchStartedAt: new Date(),
+          },
+        });
+      }
     });
 
     // Try matching immediately
@@ -92,6 +103,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
+      alreadyProcessed: !newlyProcessed,
       matched: matchResult.matched,
       sessionId: matchResult.sessionId,
       sessionCode: matchResult.sessionCode,

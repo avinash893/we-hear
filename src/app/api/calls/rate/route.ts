@@ -86,8 +86,9 @@ export async function POST(req: Request) {
         },
       });
 
-      // 2. Adjust or create listener earning
+      // 2. Adjust or create listener earning and transition to AVAILABLE
       if (callSession.earning) {
+        const wasPending = callSession.earning.status === "PENDING";
         const previousAmount = callSession.earning.amountInr;
         const delta = finalEarningInr - previousAmount;
 
@@ -96,17 +97,21 @@ export async function POST(req: Request) {
           data: {
             amountInr: finalEarningInr,
             ratingApplied: roundedRating,
+            status: "AVAILABLE",
           },
         });
 
-        // Update listener profile totals if there's a difference
-        if (delta !== 0 && callSession.listenerId) {
-          await tx.listenerProfile.updateMany({
-            where: { userId: callSession.listenerId },
-            data: {
-              totalEarnedInr: { increment: delta },
-            },
-          });
+        // Credit earnings to listener profile
+        if (callSession.listenerId) {
+          const creditAmount = wasPending ? finalEarningInr : delta;
+          if (creditAmount !== 0) {
+            await tx.listenerProfile.updateMany({
+              where: { userId: callSession.listenerId },
+              data: {
+                totalEarnedInr: { increment: creditAmount },
+              },
+            });
+          }
         }
       } else if (callSession.listenerId && callSession.isEarningEligible) {
         // If earning wasn't created yet, create it with the final rated amount

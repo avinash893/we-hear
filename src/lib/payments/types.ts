@@ -21,7 +21,7 @@ export interface VerifyPaymentParams {
   orderId: string;
   paymentId: string;
   signature?: string;
-  sessionId: string;
+  sessionId?: string;
 }
 
 export interface RefundPaymentParams {

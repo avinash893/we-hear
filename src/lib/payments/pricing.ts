@@ -137,15 +137,18 @@ export function detectCountry(req: Request): string {
     return geoCountry.toUpperCase();
   }
 
-  // 3. Optional URL query parameter (?country=US) for testing or manual user preference
-  try {
-    const url = new URL(req.url);
-    const countryParam = url.searchParams.get("country");
-    if (countryParam && countryParam.length === 2) {
-      return countryParam.toUpperCase();
+  // 3. Optional URL query parameter (?country=US) for development testing ONLY
+  // In production, strictly reject client query overrides to prevent price tier spoofing
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const url = new URL(req.url);
+      const countryParam = url.searchParams.get("country");
+      if (countryParam && countryParam.length === 2) {
+        return countryParam.toUpperCase();
+      }
+    } catch {
+      // Ignore URL parse errors on relative internal requests
     }
-  } catch {
-    // Ignore URL parse errors on relative internal requests
   }
 
   // Default fallback (configurable via DEFAULT_COUNTRY in .env)

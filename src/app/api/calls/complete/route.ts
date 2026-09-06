@@ -74,21 +74,21 @@ export async function POST(req: Request) {
 
       // 2. If eligible and listener exists and no earning yet recorded
       if (isEarningEligible && callSession.listenerId && !callSession.earning) {
+        // Create in PENDING settlement status awaiting rating finalization
         await tx.listenerEarning.create({
           data: {
             listenerId: callSession.listenerId,
             sessionId: callSession.id,
             amountInr: callSession.listenerEarningInr,
-            status: "AVAILABLE",
+            status: "PENDING",
           },
         });
 
-        // Update listener profile totals
+        // Increment completed calls count
         await tx.listenerProfile.updateMany({
           where: { userId: callSession.listenerId },
           data: {
             totalCalls: { increment: 1 },
-            totalEarnedInr: { increment: callSession.listenerEarningInr },
           },
         });
       }

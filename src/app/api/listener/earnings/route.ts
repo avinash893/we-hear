@@ -14,6 +14,33 @@ export async function GET() {
 
     const userId = session.user.id;
 
+    // Auto-settle any PENDING earnings older than 2 hours (speaker never submitted rating)
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const stalePending = await prisma.listenerEarning.findMany({
+      where: {
+        listenerId: userId,
+        status: "PENDING",
+        createdAt: { lte: twoHoursAgo },
+      },
+    });
+
+    if (stalePending.length > 0) {
+      for (const earning of stalePending) {
+        await prisma.$transaction(async (tx) => {
+          const updated = await tx.listenerEarning.updateMany({
+            where: { id: earning.id, status: "PENDING" },
+            data: { status: "AVAILABLE" },
+          });
+          if (updated.count > 0) {
+            await tx.listenerProfile.updateMany({
+              where: { userId },
+              data: { totalEarnedInr: { increment: earning.amountInr } },
+            });
+          }
+        });
+      }
+    }
+
     // Available earnings (eligible and ready for payout)
     const availableAgg = await prisma.listenerEarning.aggregate({
       where: {
@@ -32,6 +59,17 @@ export async function GET() {
       },
       _sum: { amountInr: true },
     });
+
+    // Check active listener subscription for reduced payout threshold
+    const activeSub = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        role: "LISTENER",
+        status: "ACTIVE",
+        endsAt: { gte: new Date() },
+      },
+    });
+    const minPayoutThreshold = activeSub ? 50 : Number(process.env.MIN_PAYOUT_THRESHOLD_INR || 100);
 
     // Total completed eligible conversations
     const totalCalls = await prisma.callSession.count({
@@ -59,7 +97,8 @@ export async function GET() {
       availableBalanceInr: availableAgg._sum.amountInr || 0,
       pendingBalanceInr: pendingAgg._sum.amountInr || 0,
       completedCallsCount: totalCalls,
-      minPayoutThresholdInr: Number(process.env.MIN_PAYOUT_THRESHOLD_INR || 100),
+      minPayoutThresholdInr: minPayoutThreshold,
+      hasReducedThreshold: Boolean(activeSub),
       history: earningsHistory,
     });
   } catch (error: any) {

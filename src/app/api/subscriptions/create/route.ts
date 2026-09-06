@@ -50,6 +50,7 @@ export async function POST(req: Request) {
     const subscription = await prisma.subscription.create({
       data: {
         userId,
+        orderId: order.orderId,
         role: plan.role,
         planDays: plan.durationDays,
         amountInr: plan.priceInr,

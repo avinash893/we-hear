@@ -35,6 +35,20 @@ export async function POST(req: Request) {
     for (const session of expiredSessions) {
       if (!session.payment || session.payment.status !== "SUCCESS") continue;
 
+      // 1. Atomic Lease Lock: Claim the session for refunding.
+      // If another concurrent cron worker claimed it, count === 0.
+      const claim = await prisma.callSession.updateMany({
+        where: {
+          id: session.id,
+          status: "WAITING_FOR_LISTENER",
+        },
+        data: {
+          status: "REFUND_PENDING",
+        },
+      });
+
+      if (claim.count === 0) continue;
+
       try {
         // Execute refund through isolated PaymentService
         const refund = await paymentService.refundPayment({
@@ -57,21 +71,29 @@ export async function POST(req: Request) {
           }),
           prisma.callSession.update({
             where: { id: session.id },
-            data: { status: "REFUNDED" },
+            data: { status: refund.success ? "REFUNDED" : "REFUND_FAILED" },
           }),
           prisma.payment.update({
             where: { id: session.payment.id },
-            data: { status: "REFUNDED" },
+            data: { status: refund.success ? "REFUNDED" : "REFUND_FAILED" },
           }),
         ]);
 
         refundResults.push({
           sessionId: session.id,
           refundId: refund.refundId,
-          status: "REFUNDED",
+          status: refund.success ? "REFUNDED" : "REFUND_FAILED",
         });
       } catch (err: any) {
         console.error(`Failed to refund session ${session.id}:`, err);
+        // Mark as REFUND_FAILED to avoid infinite duplicate retry loop
+        await prisma.callSession
+          .update({
+            where: { id: session.id },
+            data: { status: "REFUND_FAILED" },
+          })
+          .catch(() => {});
+
         refundResults.push({
           sessionId: session.id,
           status: "ERROR",
