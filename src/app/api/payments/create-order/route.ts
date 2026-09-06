@@ -59,6 +59,14 @@ export async function POST(req: Request) {
       ? regional.listenerEarning
       : Math.round(regional.listenerEarning * 84);
 
+    const minListenerEarningInr = regional.currency === "INR"
+      ? regional.minListenerEarning
+      : Math.round(regional.minListenerEarning * 84);
+
+    const maxListenerEarningInr = regional.currency === "INR"
+      ? regional.maxListenerEarning
+      : Math.round(regional.maxListenerEarning * 84);
+
     const sessionCode = `room_${crypto.randomBytes(8).toString("hex")}`;
     const idempotencyKey = `pay_req_${crypto.randomBytes(12).toString("hex")}`;
 
@@ -70,6 +78,8 @@ export async function POST(req: Request) {
         status: "PAYMENT_PENDING",
         priceInr,
         listenerEarningInr,
+        minListenerEarningInr,
+        maxListenerEarningInr,
       },
     });
 

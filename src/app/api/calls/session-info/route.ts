@@ -57,6 +57,10 @@ export async function GET(req: Request) {
       status: callSession.status,
       callStartedAt: callSession.callStartedAt || callSession.createdAt,
       durationMinutes: Number(process.env.SESSION_DURATION_MINUTES || 30),
+      minListenerEarningInr: callSession.minListenerEarningInr,
+      maxListenerEarningInr: callSession.maxListenerEarningInr,
+      speakerRating: callSession.speakerRating,
+      isRated: Boolean(callSession.speakerRating),
       isAlreadyEnded:
         callSession.status === "CALL_COMPLETED" ||
         callSession.status === "CALL_ENDED_BY_CLIENT" ||

@@ -24,6 +24,8 @@ import { usePrivacyShield } from "@/hooks/usePrivacyShield";
 import { DeviceDetector } from "@/lib/security/deviceDetector";
 import ForensicWatermark from "@/components/calling/ForensicWatermark";
 import ReportModal from "@/components/safety/ReportModal";
+import ListenerPreCallModal from "@/components/calling/ListenerPreCallModal";
+import SpeakerRatingCard from "@/components/calling/SpeakerRatingCard";
 import Link from "next/link";
 
 export default function CallPage() {
@@ -39,8 +41,13 @@ export default function CallPage() {
     durationMinutes: number;
     isAlreadyEnded: boolean;
     callToken?: string;
+    minListenerEarningInr?: number;
+    maxListenerEarningInr?: number;
+    speakerRating?: number | null;
+    isRated?: boolean;
   } | null>(null);
 
+  const [listenerAcceptedNotice, setListenerAcceptedNotice] = useState(false);
   const [loadingInfo, setLoadingInfo] = useState(true);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [callEndedInfo, setCallEndedInfo] = useState<{
@@ -127,7 +134,12 @@ export default function CallPage() {
     userId,
     role,
     callToken: sessionInfo?.callToken,
-    enabled: Boolean(session?.user?.id && sessionInfo?.callToken && !sessionInfo?.isAlreadyEnded),
+    enabled: Boolean(
+      session?.user?.id &&
+      sessionInfo?.callToken &&
+      !sessionInfo?.isAlreadyEnded &&
+      (sessionInfo?.role === "CLIENT" || listenerAcceptedNotice)
+    ),
     onCallEnded: handleCallEndedCallback,
     onRecordingWarning: handleRecordingWarning,
   });
@@ -225,30 +237,36 @@ export default function CallPage() {
 
           {/* Earnings card for listener */}
           {isListener && (
-            <div className="p-5 rounded-2xl bg-surface-muted border border-border space-y-2">
+            <div className="p-5 rounded-2xl bg-surface-muted border border-border space-y-2 text-left">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Listener Session Summary
               </span>
               <div className="text-2xl font-bold text-slate-900">
                 {earned ? (
-                  <span className="text-emerald-700">+₹15 Earned</span>
+                  <span className="text-emerald-700">
+                    ₹{sessionInfo.minListenerEarningInr || 8} - ₹{sessionInfo.maxListenerEarningInr || 14} Payout
+                  </span>
                 ) : (
                   <span className="text-slate-600">₹0 (Call left before client)</span>
                 )}
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 {earned
-                  ? "The client ended the conversation or completed the duration. ₹15 has been credited to your available earnings."
+                  ? "Your final earnings for this session will be calculated from the speaker's rating evaluation of your attentiveness and video presence."
                   : "Under platform rules, leaving a conversation before the client ends it forfeits earnings for this session."}
               </p>
             </div>
           )}
 
-          {/* Reflection message for client */}
+          {/* Experience evaluation for speaker */}
           {!isListener && (
-            <div className="p-5 rounded-2xl bg-primary-50/70 border border-primary-200/80 text-xs text-primary-950 leading-relaxed">
-              We hope this conversation brought you a moment of comfort, warmth, and relief. Take care of yourself today.
-            </div>
+            <SpeakerRatingCard
+              sessionCode={sessionCode}
+              peerNickname={sessionInfo.peerNickname}
+              minEarningInr={sessionInfo.minListenerEarningInr || 8}
+              maxEarningInr={sessionInfo.maxListenerEarningInr || 14}
+              baseEarningInr={10}
+            />
           )}
 
           {/* Safety report option */}
@@ -486,20 +504,30 @@ export default function CallPage() {
             {isAudioMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
 
-          {/* Camera On/Off */}
-          <button
-            type="button"
-            onClick={toggleVideo}
-            className={`p-3.5 rounded-full transition-all ${
-              isVideoOff
-                ? "bg-red-600 hover:bg-red-700 text-white"
-                : "bg-slate-800 hover:bg-slate-700 text-slate-200"
-            }`}
-            title={isVideoOff ? "Turn camera on" : "Turn camera off"}
-            aria-label={isVideoOff ? "Turn camera on" : "Turn camera off"}
-          >
-            {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-          </button>
+          {/* Camera On/Off: Locked ON for listener, toggleable for speaker */}
+          {sessionInfo.role === "LISTENER" ? (
+            <div
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-medium cursor-default shadow-xs"
+              title="Camera is mandatory for listeners to maintain genuine presence"
+            >
+              <Video className="w-4 h-4 text-emerald-400" />
+              <span className="text-[11px] hidden sm:inline font-semibold">Camera Required</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleVideo}
+              className={`p-3.5 rounded-full transition-all ${
+                isVideoOff
+                  ? "bg-red-600 hover:bg-red-700 text-white"
+                  : "bg-slate-800 hover:bg-slate-700 text-slate-200"
+              }`}
+              title={isVideoOff ? "Turn camera on" : "Turn camera off"}
+              aria-label={isVideoOff ? "Turn camera on" : "Turn camera off"}
+            >
+              {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+            </button>
+          )}
 
           {/* End Call */}
           <button
@@ -513,6 +541,16 @@ export default function CallPage() {
           </button>
         </div>
       </div>
+
+      {/* Listener Mandatory Pre-Call Notice Modal */}
+      {sessionInfo.role === "LISTENER" && !listenerAcceptedNotice && (
+        <ListenerPreCallModal
+          isOpen={!listenerAcceptedNotice}
+          onAccept={() => setListenerAcceptedNotice(true)}
+          minEarningInr={sessionInfo.minListenerEarningInr}
+          maxEarningInr={sessionInfo.maxListenerEarningInr}
+        />
+      )}
 
       {/* Safety Report Modal */}
       <ReportModal

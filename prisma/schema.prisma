@@ -70,7 +70,12 @@ model CallSession {
   listenerId        String?
   status            String    @default("PAYMENT_PENDING") // PAYMENT_PENDING, PAYMENT_CONFIRMED, WAITING_FOR_LISTENER, MATCHED, CALL_STARTED, CALL_COMPLETED, CALL_ENDED_BY_CLIENT, CALL_ENDED_BY_LISTENER, REFUND_PENDING, REFUNDED, EXPIRED
   priceInr          Int       @default(20)
-  listenerEarningInr Int      @default(15)
+  listenerEarningInr Int      @default(10)
+  minListenerEarningInr Int   @default(8)
+  maxListenerEarningInr Int   @default(14)
+  speakerRating     Int?
+  speakerFeedback   String?
+  ratedAt           DateTime?
   matchStartedAt    DateTime?
   matchedAt         DateTime?
   callStartedAt     DateTime?
@@ -134,15 +139,16 @@ model Refund {
 }
 
 model ListenerEarning {
-  id         String    @id @default(cuid())
-  listenerId String
-  sessionId  String    @unique // Strict 1-to-1 idempotency: one earning per session
-  amountInr  Int       @default(15)
-  status     String    @default("AVAILABLE") // AVAILABLE, PENDING, PAID_OUT
-  eligibleAt DateTime  @default(now())
-  paidAt     DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  listenerId    String
+  sessionId     String    @unique // Strict 1-to-1 idempotency: one earning per session
+  amountInr     Int       @default(10)
+  ratingApplied Int?
+  status        String    @default("AVAILABLE") // AVAILABLE, PENDING, PAID_OUT
+  eligibleAt    DateTime  @default(now())
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   listener User        @relation(fields: [listenerId], references: [id], onDelete: Cascade)
   session  CallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

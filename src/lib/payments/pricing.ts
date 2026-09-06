@@ -12,10 +12,14 @@ export interface RegionalPricing {
   currency: "USD" | "INR";
   currencySymbol: string;
   speakerPrice: number;
-  listenerEarning: number;
+  listenerEarning: number; // Base earning (3-star)
+  minListenerEarning: number; // Min earning (1-star)
+  maxListenerEarning: number; // Max earning (5-star)
   amountInSmallestUnit: number; // Paise for INR, Cents for USD
   displaySpeakerPrice: string;
   displayListenerEarning: string;
+  displayMinListenerEarning: string;
+  displayMaxListenerEarning: string;
 }
 
 // High-income Tier 1 countries
@@ -44,9 +48,13 @@ export function getRegionalPricing(countryCode = "IN"): RegionalPricing {
       currencySymbol: "$",
       speakerPrice: 0.99,
       listenerEarning: 0.50,
+      minListenerEarning: 0.35,
+      maxListenerEarning: 0.65,
       amountInSmallestUnit: 99, // 99 cents ($0.99)
       displaySpeakerPrice: "$0.99",
       displayListenerEarning: "$0.50",
+      displayMinListenerEarning: "$0.35",
+      displayMaxListenerEarning: "$0.65",
     };
   }
 
@@ -58,9 +66,13 @@ export function getRegionalPricing(countryCode = "IN"): RegionalPricing {
       currencySymbol: "₹",
       speakerPrice: 20.00,
       listenerEarning: 10.00,
+      minListenerEarning: 8.00,
+      maxListenerEarning: 14.00,
       amountInSmallestUnit: 2000, // 2000 paise (₹20.00)
       displaySpeakerPrice: "₹20",
       displayListenerEarning: "₹10",
+      displayMinListenerEarning: "₹8",
+      displayMaxListenerEarning: "₹14",
     };
   }
 
@@ -72,10 +84,41 @@ export function getRegionalPricing(countryCode = "IN"): RegionalPricing {
     currencySymbol: "$",
     speakerPrice: 0.50,
     listenerEarning: 0.25,
+    minListenerEarning: 0.18,
+    maxListenerEarning: 0.35,
     amountInSmallestUnit: 50, // 50 cents ($0.50)
     displaySpeakerPrice: "$0.50",
     displayListenerEarning: "$0.25",
+    displayMinListenerEarning: "$0.18",
+    displayMaxListenerEarning: "$0.35",
   };
+}
+
+/**
+ * Calculates listener payout based on speaker's 1-5 star experience rating
+ */
+export function calculateListenerPayout(
+  rating: number,
+  minEarning: number,
+  maxEarning: number,
+  baseEarning: number
+): number {
+  const boundedRating = Math.max(1, Math.min(5, Math.round(rating)));
+
+  switch (boundedRating) {
+    case 1:
+      return minEarning;
+    case 2:
+      return Math.round((minEarning + (baseEarning - minEarning) * 0.5 + Number.EPSILON) * 100) / 100;
+    case 3:
+      return baseEarning;
+    case 4:
+      return Math.round((baseEarning + (maxEarning - baseEarning) * 0.5 + Number.EPSILON) * 100) / 100;
+    case 5:
+      return maxEarning;
+    default:
+      return baseEarning;
+  }
 }
 
 /**
