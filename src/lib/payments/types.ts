@@ -1,5 +1,7 @@
 export interface CreatePaymentOrderParams {
   amountInr: number;
+  currency?: string; // "INR" | "USD"
+  amountInSmallestUnit?: number; // paise or cents
   userId: string;
   sessionId?: string;
   receipt: string;
@@ -9,6 +11,7 @@ export interface CreatePaymentOrderParams {
 export interface PaymentOrderResult {
   orderId: string;
   amountInr: number;
+  amount?: number;
   currency: string;
   keyId: string;
   isMock: boolean;

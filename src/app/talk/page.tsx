@@ -112,8 +112,8 @@ export default function TalkPage() {
         // 3. Real Razorpay Checkout
         const options = {
           key: orderData.keyId,
-          amount: orderData.amountInr * 100,
-          currency: orderData.currency,
+          amount: orderData.amount || (orderData.amountInr * 100),
+          currency: orderData.currency || "INR",
           name: "We Hear",
           description: "30-minute anonymous peer conversation",
           order_id: orderData.orderId,

@@ -33,14 +33,39 @@ describe("Payment Service & Security Tests", () => {
     expect(result).toBe(false);
   });
 
-  it("calculates correct split: ₹20 fee, ₹15 listener, ₹5 platform fee", () => {
+  it("calculates correct split: ₹20 fee, ₹10 listener, ₹10 platform fee", () => {
     const callPrice = 20;
-    const listenerShare = 15;
+    const listenerShare = 10;
     const platformShare = callPrice - listenerShare;
 
     expect(callPrice).toBe(20);
-    expect(listenerShare).toBe(15);
-    expect(platformShare).toBe(5);
+    expect(listenerShare).toBe(10);
+    expect(platformShare).toBe(10);
+  });
+
+  it("applies correct PPP regional pricing tiers ($0.99 for US, $0.50 for Tier 2, ₹20 for India)", async () => {
+    const { getRegionalPricing } = await import("../../src/lib/payments/pricing");
+
+    // Tier 1 (US)
+    const usPricing = getRegionalPricing("US");
+    expect(usPricing.tier).toBe("TIER_1");
+    expect(usPricing.speakerPrice).toBe(0.99);
+    expect(usPricing.listenerEarning).toBe(0.50);
+    expect(usPricing.currency).toBe("USD");
+
+    // Tier 2 (Brazil)
+    const brPricing = getRegionalPricing("BR");
+    expect(brPricing.tier).toBe("TIER_2");
+    expect(brPricing.speakerPrice).toBe(0.50);
+    expect(brPricing.listenerEarning).toBe(0.25);
+    expect(brPricing.currency).toBe("USD");
+
+    // Tier 3 (India)
+    const inPricing = getRegionalPricing("IN");
+    expect(inPricing.tier).toBe("TIER_3");
+    expect(inPricing.speakerPrice).toBe(20);
+    expect(inPricing.listenerEarning).toBe(10);
+    expect(inPricing.currency).toBe("INR");
   });
 
   it("handles RazorpayPaymentService signature verification safely without crashing on length mismatch", async () => {

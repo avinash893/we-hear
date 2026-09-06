@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { paymentService } from "@/lib/payments/service";
 import { checkRateLimit, getClientIp } from "@/lib/security/rateLimiter";
 import { verifyCaptchaSolution } from "@/lib/security/captcha";
+import { detectCountry, getRegionalPricing } from "@/lib/payments/pricing";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
@@ -46,7 +47,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Account not active" }, { status: 403 });
     }
 
-    const amountInr = Number(process.env.CALL_PRICE_INR || 20);
+    // Dynamic Regional PPP Pricing
+    const country = detectCountry(req);
+    const regional = getRegionalPricing(country);
+
+    const priceInr = regional.currency === "INR" 
+      ? regional.speakerPrice 
+      : Math.round(regional.speakerPrice * 84);
+
+    const listenerEarningInr = regional.currency === "INR"
+      ? regional.listenerEarning
+      : Math.round(regional.listenerEarning * 84);
+
     const sessionCode = `room_${crypto.randomBytes(8).toString("hex")}`;
     const idempotencyKey = `pay_req_${crypto.randomBytes(12).toString("hex")}`;
 
@@ -56,20 +68,24 @@ export async function POST(req: Request) {
         sessionCode,
         clientId: userId,
         status: "PAYMENT_PENDING",
-        priceInr: amountInr,
-        listenerEarningInr: Number(process.env.LISTENER_EARNING_INR || 15),
+        priceInr,
+        listenerEarningInr,
       },
     });
 
     // Create payment order via isolated payment service
     const order = await paymentService.createPayment({
-      amountInr,
+      amountInr: priceInr,
+      currency: regional.currency,
+      amountInSmallestUnit: regional.amountInSmallestUnit,
       userId,
       sessionId: callSession.id,
       receipt: `rcpt_${callSession.id.substring(0, 10)}`,
       notes: {
         sessionId: callSession.id,
         sessionCode: callSession.sessionCode,
+        tier: regional.tier,
+        country: regional.countryCode,
       },
     });
 
@@ -78,7 +94,7 @@ export async function POST(req: Request) {
       data: {
         userId,
         sessionId: callSession.id,
-        amountInr,
+        amountInr: priceInr,
         provider: order.isMock ? "MOCK" : "RAZORPAY",
         orderId: order.orderId,
         status: "PENDING",
@@ -90,7 +106,9 @@ export async function POST(req: Request) {
       success: true,
       orderId: order.orderId,
       amountInr: order.amountInr,
+      amount: regional.amountInSmallestUnit,
       currency: order.currency,
+      displayPrice: regional.displaySpeakerPrice,
       keyId: order.keyId,
       sessionId: callSession.id,
       sessionCode: callSession.sessionCode,

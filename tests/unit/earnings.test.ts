@@ -19,9 +19,9 @@ function evaluateCallEarnings(params: {
 
 describe("Section 12: Authoritative Call Ending & Earnings Rule", () => {
   const callPrice = 20;
-  const listenerRate = 15;
+  const listenerRate = 10;
 
-  it("credits ₹15 to listener when Client ends call first", () => {
+  it("credits ₹10 to listener when Client ends call first", () => {
     const result = evaluateCallEarnings({
       endedByRole: "CLIENT",
       callPriceInr: callPrice,
@@ -29,8 +29,8 @@ describe("Section 12: Authoritative Call Ending & Earnings Rule", () => {
     });
 
     expect(result.isEarningEligible).toBe(true);
-    expect(result.listenerEarnedInr).toBe(15);
-    expect(result.platformFeeInr).toBe(5);
+    expect(result.listenerEarnedInr).toBe(10);
+    expect(result.platformFeeInr).toBe(10);
   });
 
   it("forfeits listener earning (₹0) when Listener ends call first", () => {
@@ -45,7 +45,7 @@ describe("Section 12: Authoritative Call Ending & Earnings Rule", () => {
     expect(result.platformFeeInr).toBe(20);
   });
 
-  it("credits ₹15 to listener when full 30-min duration expires (TIMEOUT)", () => {
+  it("credits ₹10 to listener when full 30-min duration expires (TIMEOUT)", () => {
     const result = evaluateCallEarnings({
       endedByRole: "TIMEOUT",
       callPriceInr: callPrice,
@@ -53,7 +53,7 @@ describe("Section 12: Authoritative Call Ending & Earnings Rule", () => {
     });
 
     expect(result.isEarningEligible).toBe(true);
-    expect(result.listenerEarnedInr).toBe(15);
+    expect(result.listenerEarnedInr).toBe(10);
   });
 
   it("prevents double-crediting via idempotency simulation", () => {

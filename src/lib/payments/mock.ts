@@ -11,10 +11,13 @@ import crypto from "crypto";
 export class MockPaymentService implements IPaymentService {
   async createPayment(params: CreatePaymentOrderParams): Promise<PaymentOrderResult> {
     const orderId = `order_mock_${crypto.randomBytes(8).toString("hex")}`;
+    const currency = (params.currency || "INR").toUpperCase();
+    const amount = params.amountInSmallestUnit ?? Math.round(params.amountInr * 100);
     return {
       orderId,
       amountInr: params.amountInr,
-      currency: "INR",
+      amount,
+      currency,
       keyId: "rzp_test_mock_sandbox",
       isMock: true,
     };

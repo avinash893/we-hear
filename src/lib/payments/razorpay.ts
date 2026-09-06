@@ -20,6 +20,9 @@ export class RazorpayPaymentService implements IPaymentService {
   }
 
   async createPayment(params: CreatePaymentOrderParams): Promise<PaymentOrderResult> {
+    const currency = (params.currency || "INR").toUpperCase();
+    const amount = params.amountInSmallestUnit ?? Math.round(params.amountInr * 100);
+
     const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString("base64");
     const response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
@@ -28,8 +31,8 @@ export class RazorpayPaymentService implements IPaymentService {
         Authorization: `Basic ${auth}`,
       },
       body: JSON.stringify({
-        amount: params.amountInr * 100, // Razorpay uses paisa
-        currency: "INR",
+        amount,
+        currency,
         receipt: params.receipt,
         notes: params.notes,
       }),
@@ -44,7 +47,8 @@ export class RazorpayPaymentService implements IPaymentService {
     return {
       orderId: data.id,
       amountInr: params.amountInr,
-      currency: "INR",
+      amount,
+      currency,
       keyId: this.keyId,
       isMock: false,
     };
