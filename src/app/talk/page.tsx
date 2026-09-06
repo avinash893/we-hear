@@ -140,6 +140,11 @@ export default function TalkPage() {
           theme: {
             color: "#2F6B52",
           },
+          modal: {
+            ondismiss: function () {
+              setLoading(false);
+            },
+          },
         };
 
         const rzp = new (window as any).Razorpay(options);

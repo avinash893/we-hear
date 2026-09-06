@@ -42,4 +42,27 @@ describe("Payment Service & Security Tests", () => {
     expect(listenerShare).toBe(15);
     expect(platformShare).toBe(5);
   });
+
+  it("handles RazorpayPaymentService signature verification safely without crashing on length mismatch", async () => {
+    const { RazorpayPaymentService } = await import("../../src/lib/payments/razorpay");
+    const service = new RazorpayPaymentService();
+
+    // Malformed/short signature shouldn't cause RangeError in timingSafeEqual
+    const invalidShortSig = await service.verifyPayment({
+      orderId: "order_123",
+      paymentId: "pay_123",
+      signature: "short",
+      sessionId: "sess_123",
+    });
+    expect(invalidShortSig).toBe(false);
+
+    // Empty signature
+    const emptySig = await service.verifyPayment({
+      orderId: "order_123",
+      paymentId: "pay_123",
+      signature: "",
+      sessionId: "sess_123",
+    });
+    expect(emptySig).toBe(false);
+  });
 });

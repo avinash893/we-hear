@@ -58,10 +58,11 @@ export class RazorpayPaymentService implements IPaymentService {
       .update(body)
       .digest("hex");
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(params.signature)
-    );
+    const expectedBuf = Buffer.from(expectedSignature);
+    const sigBuf = Buffer.from(params.signature);
+    if (expectedBuf.length !== sigBuf.length) return false;
+
+    return crypto.timingSafeEqual(expectedBuf, sigBuf);
   }
 
   async refundPayment(params: RefundPaymentParams): Promise<RefundResult> {
@@ -75,7 +76,7 @@ export class RazorpayPaymentService implements IPaymentService {
           Authorization: `Basic ${auth}`,
         },
         body: JSON.stringify({
-          amount: params.amountInr * 100,
+          amount: Math.round(params.amountInr * 100),
           notes: { reason: params.reason },
         }),
       }
@@ -101,9 +102,10 @@ export class RazorpayPaymentService implements IPaymentService {
       .update(payload)
       .digest("hex");
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(signature)
-    );
+    const expectedBuf = Buffer.from(expectedSignature);
+    const sigBuf = Buffer.from(signature);
+    if (expectedBuf.length !== sigBuf.length) return false;
+
+    return crypto.timingSafeEqual(expectedBuf, sigBuf);
   }
 }
