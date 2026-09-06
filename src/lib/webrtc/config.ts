@@ -10,12 +10,16 @@ export function getIceServers(): RTCIceServer[] {
     },
   ];
 
-  // If production TURN server is configured (e.g. Coturn, Twilio, Metered)
-  if (process.env.TURN_SERVER_URL && process.env.TURN_USERNAME && process.env.TURN_PASSWORD) {
+  // Production TURN server configuration (Metered, Twilio, Coturn)
+  const turnUrl = process.env.NEXT_PUBLIC_TURN_SERVER_URL || process.env.TURN_SERVER_URL;
+  const turnUser = process.env.NEXT_PUBLIC_TURN_USERNAME || process.env.TURN_USERNAME;
+  const turnPass = process.env.NEXT_PUBLIC_TURN_PASSWORD || process.env.TURN_PASSWORD;
+
+  if (turnUrl && turnUser && turnPass) {
     servers.push({
-      urls: process.env.TURN_SERVER_URL,
-      username: process.env.TURN_USERNAME,
-      credential: process.env.TURN_PASSWORD,
+      urls: turnUrl,
+      username: turnUser,
+      credential: turnPass,
     });
   }
 
