@@ -128,4 +128,56 @@ describe("Enterprise Security Suite: CAPTCHA, Rate Limiting & Cryptographic Toke
       expect(isValidCode("<script>")).toBe(false);
     });
   });
+
+  describe("Timing Attack & Signature Buffer Length Guards", () => {
+    it("handles variable-length and truncated signatures safely without throwing RangeError", () => {
+      const token = generateCallToken("room_sec_safe", "usr_100", "CLIENT");
+      // Truncate signature to test buffer length mismatch
+      const tamperedShort = token.slice(0, 20);
+      const resShort = verifyCallToken(tamperedShort, "room_sec_safe", "usr_100");
+      expect(resShort.valid).toBe(false);
+
+      // Malformed base64 with wrong signature length
+      const [payload] = Buffer.from(token, "base64").toString("utf8").split(":");
+      const malformedPayload = Buffer.from(`${payload}:shortsig`).toString("base64");
+      const resMalformed = verifyCallToken(malformedPayload, "room_sec_safe", "usr_100");
+      expect(resMalformed.valid).toBe(false);
+    });
+
+    it("handles variable-length CAPTCHA tokens without throwing RangeError", () => {
+      expect(verifyCaptchaSolution("15", "invalid_short_token")).toBe(false);
+      expect(verifyCaptchaSolution("15", Buffer.from("id:123:short").toString("base64"))).toBe(false);
+    });
+  });
+
+  describe("Production Mock Payment Isolation", () => {
+    it("strictly blocks MockPaymentService in production environment", async () => {
+      const originalEnv = process.env.NODE_ENV;
+      try {
+        (process.env as any).NODE_ENV = "production";
+        const { MockPaymentService } = await import("../../src/lib/payments/mock");
+        const mockService = new MockPaymentService();
+
+        await expect(
+          mockService.createPayment({
+            amountInr: 20,
+            userId: "usr_prod_test",
+            receipt: "rcpt_test",
+          })
+        ).rejects.toThrow("Mock payment provider is strictly disabled in production");
+
+        await expect(
+          mockService.verifyPayment({
+            orderId: "order_mock_123",
+            paymentId: "pay_mock_123",
+            sessionId: "sess_123",
+          })
+        ).rejects.toThrow("Mock payment verification is strictly disabled in production");
+
+        expect(mockService.verifyWebhookSignature("{}", "mock_webhook_signature")).toBe(false);
+      } finally {
+        (process.env as any).NODE_ENV = originalEnv;
+      }
+    });
+  });
 });

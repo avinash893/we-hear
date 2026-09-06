@@ -125,37 +125,39 @@ export default function SignInPage() {
             <span>Continue with Google</span>
           </button>
 
-          {/* Dev Mode Simulation Login (allows instant testing without Google credentials) */}
-          <div className="pt-4 border-t border-border">
-            <div className="text-center mb-3">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Development / Testing Mode
-              </span>
+          {/* Dev Mode Simulation Login (strictly hidden in production builds) */}
+          {process.env.NODE_ENV !== "production" && (
+            <div className="pt-4 border-t border-border">
+              <div className="text-center mb-3">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Development / Testing Mode
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={!ageConfirmed || !captchaData?.answer || loading}
+                  onClick={() => handleDevSignIn("speaker")}
+                  className="py-2.5 px-3 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-800 text-xs font-medium border border-primary-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>Login as Speaker</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={!ageConfirmed || !captchaData?.answer || loading}
+                  onClick={() => handleDevSignIn("listener")}
+                  className="py-2.5 px-3 rounded-lg bg-warm-100 hover:bg-warm-200 text-warm-900 text-xs font-medium border border-warm-300 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>Login as Listener</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              <p className="mt-2 text-[10px] text-center text-slate-500">
+                Quickly tests both roles in separate browser windows or tabs.
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={!ageConfirmed || !captchaData?.answer || loading}
-                onClick={() => handleDevSignIn("speaker")}
-                className="py-2.5 px-3 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-800 text-xs font-medium border border-primary-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>Login as Speaker</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                disabled={!ageConfirmed || !captchaData?.answer || loading}
-                onClick={() => handleDevSignIn("listener")}
-                className="py-2.5 px-3 rounded-lg bg-warm-100 hover:bg-warm-200 text-warm-900 text-xs font-medium border border-warm-300 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>Login as Listener</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-            <p className="mt-2 text-[10px] text-center text-slate-500">
-              Quickly tests both roles in separate browser windows or tabs.
-            </p>
-          </div>
+          )}
         </div>
 
         <div className="mt-8 pt-4 border-t border-border/70 flex items-center justify-center gap-2 text-xs text-slate-500">

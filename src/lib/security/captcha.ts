@@ -60,10 +60,13 @@ export function verifyCaptchaSolution(userAnswer: string, token: string): boolea
       .update(payload)
       .digest("hex");
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(providedSignature)
-    );
+    const expBuf = Buffer.from(expectedSignature);
+    const provBuf = Buffer.from(providedSignature || "");
+    if (expBuf.length !== provBuf.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(expBuf, provBuf);
   } catch (err) {
     return false;
   }

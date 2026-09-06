@@ -21,11 +21,20 @@ interface UseWebRTCOptions {
   userId: string;
   role: "CLIENT" | "LISTENER";
   callToken?: string;
+  enabled?: boolean;
   onCallEnded?: (endedByRole: string) => void;
   onRecordingWarning?: (warning: { deviceType: string; timestamp: number }) => void;
 }
 
-export function useWebRTC({ sessionCode, userId, role, callToken, onCallEnded, onRecordingWarning }: UseWebRTCOptions) {
+export function useWebRTC({
+  sessionCode,
+  userId,
+  role,
+  callToken,
+  enabled = true,
+  onCallEnded,
+  onRecordingWarning,
+}: UseWebRTCOptions) {
   const [connectionState, setConnectionState] = useState<ConnectionState>("INITIALIZING");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -64,6 +73,11 @@ export function useWebRTC({ sessionCode, userId, role, callToken, onCallEnded, o
 
   // Initialize WebRTC and Socket.IO
   useEffect(() => {
+    // Only request media and connect socket once authorized with valid user and session
+    if (enabled === false || !userId || !sessionCode) {
+      return;
+    }
+
     let isMounted = true;
 
     async function start() {

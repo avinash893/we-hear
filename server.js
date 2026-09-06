@@ -67,8 +67,28 @@ app.prepare().then(() => {
     let currentUserRole = null;
     let currentUserId = null;
 
+    // Sliding-window message flood shield (anti-DoS per connection)
+    let eventCount = 0;
+    let windowStart = Date.now();
+    const isRateLimited = () => {
+      const now = Date.now();
+      if (now - windowStart > 5000) {
+        windowStart = now;
+        eventCount = 1;
+        return false;
+      }
+      eventCount++;
+      return eventCount > 60; // Max 60 events per 5 seconds
+    };
+
     socket.on("join-room", ({ sessionCode, callToken, userId, role }) => {
       if (!sessionCode || !userId) return;
+
+      // In production, call token is mandatory
+      if (process.env.NODE_ENV === "production" && !callToken) {
+        socket.emit("error-message", { message: "Security error: Authorized call token is required." });
+        return;
+      }
 
       // Cryptographic room token verification
       const tokenSecret = process.env.NEXTAUTH_SECRET || "we-hear-call-token-secure-salt-key-123456";
@@ -83,7 +103,9 @@ app.prepare().then(() => {
           const crypto = require("crypto");
           const payload = `${tCode}:${tUser}:${tRole}:${tExp}`;
           const expectedSig = crypto.createHmac("sha256", tokenSecret).update(payload).digest("hex");
-          if (!crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(tSig))) {
+          const expBuf = Buffer.from(expectedSig);
+          const sigBuf = Buffer.from(tSig || "");
+          if (expBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expBuf, sigBuf)) {
             socket.emit("error-message", { message: "Security error: Tampered room token detected." });
             return;
           }
@@ -131,24 +153,29 @@ app.prepare().then(() => {
       });
     });
 
-    // WebRTC Signaling relays
+    // WebRTC Signaling relays with strict room membership verification & flood protection
     socket.on("offer", ({ sessionCode, sdp }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== sessionCode) return;
       socket.to(sessionCode).emit("offer", { sdp, fromRole: currentUserRole });
     });
 
     socket.on("answer", ({ sessionCode, sdp }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== sessionCode) return;
       socket.to(sessionCode).emit("answer", { sdp, fromRole: currentUserRole });
     });
 
     socket.on("ice-candidate", ({ sessionCode, candidate }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== sessionCode) return;
       socket.to(sessionCode).emit("ice-candidate", { candidate });
     });
 
     socket.on("media-state", ({ sessionCode, isAudioMuted, isVideoOff }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== sessionCode) return;
       socket.to(sessionCode).emit("peer-media-state", { isAudioMuted, isVideoOff });
     });
 
     socket.on("recording-device-alert", ({ sessionCode, deviceType }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== sessionCode) return;
       socket.to(sessionCode).emit("recording-device-warning", {
         deviceType: deviceType || "cell phone",
         timestamp: Date.now(),
@@ -156,13 +183,12 @@ app.prepare().then(() => {
     });
 
     socket.on("end-call", ({ sessionCode, endedByRole }) => {
-      if (currentRoomCode) {
-        io.to(currentRoomCode).emit("call-ended", {
-          endedByRole: endedByRole || currentUserRole,
-          reason: "USER_ENDED",
-        });
-        activeRooms.delete(currentRoomCode);
-      }
+      if (!currentRoomCode || currentRoomCode !== sessionCode) return;
+      io.to(currentRoomCode).emit("call-ended", {
+        endedByRole: endedByRole || currentUserRole,
+        reason: "USER_ENDED",
+      });
+      activeRooms.delete(currentRoomCode);
     });
 
     socket.on("disconnect", () => {

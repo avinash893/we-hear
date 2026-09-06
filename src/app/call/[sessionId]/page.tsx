@@ -127,6 +127,7 @@ export default function CallPage() {
     userId,
     role,
     callToken: sessionInfo?.callToken,
+    enabled: Boolean(session?.user?.id && sessionInfo?.callToken && !sessionInfo?.isAlreadyEnded),
     onCallEnded: handleCallEndedCallback,
     onRecordingWarning: handleRecordingWarning,
   });

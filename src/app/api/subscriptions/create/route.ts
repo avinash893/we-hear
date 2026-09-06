@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { SUBSCRIPTION_PLANS } from "@/lib/subscriptions/config";
 import { paymentService } from "@/lib/payments/service";
 
+import { checkRateLimit } from "@/lib/security/rateLimiter";
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,6 +15,15 @@ export async function POST(req: Request) {
     }
 
     const userId = session.user.id;
+
+    // Rate limit: max 10 subscription attempts per minute
+    const limit = checkRateLimit(userId, "subscription_create", 10, 60);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { message: `Too many subscription requests. Please retry in ${limit.resetSeconds}s.` },
+        { status: 429 }
+      );
+    }
     const body = await req.json();
     const plan = SUBSCRIPTION_PLANS.find((p) => p.id === body.planId);
 

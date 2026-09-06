@@ -5,10 +5,14 @@ import { paymentService } from "@/lib/payments/service";
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET || "cron_dev_secret";
+    const cronSecret = process.env.CRON_SECRET;
 
-    // Protect cron endpoint in production
-    if (process.env.NODE_ENV === "production" && authHeader !== `Bearer ${cronSecret}`) {
+    // Strict protection: In production, CRON_SECRET must be explicitly set and match
+    if (process.env.NODE_ENV === "production") {
+      if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ message: "Unauthorized cron execution" }, { status: 401 });
+      }
+    } else if (authHeader && authHeader !== `Bearer ${cronSecret || "cron_dev_secret"}`) {
       return NextResponse.json({ message: "Unauthorized cron execution" }, { status: 401 });
     }
 

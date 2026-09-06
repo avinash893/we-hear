@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import { prisma } from "@/lib/db";
 
+import { checkRateLimit } from "@/lib/security/rateLimiter";
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -11,6 +13,16 @@ export async function POST(req: Request) {
     }
 
     const blockerUserId = session.user.id;
+
+    // Rate limit: max 10 block actions per minute
+    const limit = checkRateLimit(blockerUserId, "block", 10, 60);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { message: `Too many block actions. Please wait ${limit.resetSeconds}s.` },
+        { status: 429 }
+      );
+    }
+
     const { sessionCode } = await req.json();
 
     if (!sessionCode) {
@@ -26,6 +38,15 @@ export async function POST(req: Request) {
     }
 
     const isClient = callSession.clientId === blockerUserId;
+    const isListener = callSession.listenerId === blockerUserId;
+
+    if (!isClient && !isListener) {
+      return NextResponse.json(
+        { message: "Forbidden: You were not a participant in this call session." },
+        { status: 403 }
+      );
+    }
+
     const blockedUserId = isClient ? callSession.listenerId : callSession.clientId;
 
     if (!blockedUserId) {

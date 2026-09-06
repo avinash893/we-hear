@@ -31,6 +31,15 @@ export async function GET(req: Request) {
         return NextResponse.json({ message: "Session not found" }, { status: 404 });
       }
 
+      const isParticipant =
+        callSession.clientId === session.user.id || callSession.listenerId === session.user.id;
+      if (!isParticipant) {
+        return NextResponse.json(
+          { message: "Forbidden: You are not a participant in this session" },
+          { status: 403 }
+        );
+      }
+
       // If still waiting, try matching again now
       if (callSession.status === "WAITING_FOR_LISTENER") {
         const matchResult = await attemptMatch(sessionId);

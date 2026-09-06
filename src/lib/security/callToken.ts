@@ -65,12 +65,9 @@ export function verifyCallToken(
       .update(payload)
       .digest("hex");
 
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(signature)
-    );
-
-    if (!isValid) {
+    const expBuf = Buffer.from(expectedSignature);
+    const sigBuf = Buffer.from(signature || "");
+    if (expBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expBuf, sigBuf)) {
       return { valid: false, error: "Invalid signature" };
     }
 

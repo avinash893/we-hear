@@ -37,8 +37,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Session not found" }, { status: 404 });
     }
 
-    // Determine reported user (the other participant in the session)
     const isClient = callSession.clientId === reporterUserId;
+    const isListener = callSession.listenerId === reporterUserId;
+
+    if (!isClient && !isListener) {
+      return NextResponse.json(
+        { message: "Forbidden: You were not a participant in this call session." },
+        { status: 403 }
+      );
+    }
+
     const reportedUserId = isClient ? callSession.listenerId : callSession.clientId;
 
     if (!reportedUserId) {

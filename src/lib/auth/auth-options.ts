@@ -14,16 +14,19 @@ export const authOptions: NextAuthOptions = {
           }),
         ]
       : []),
-    // Dev sandbox provider for local testing and dual-window simulation
-    CredentialsProvider({
-      id: "dev-sandbox",
-      name: "Development Sandbox Login",
-      credentials: {
-        email: { label: "Dev Email (for simulation)", type: "email", placeholder: "speaker@test.local" },
-        role: { label: "Role Preset", type: "text", placeholder: "speaker or listener" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email) return null;
+    // Dev sandbox provider for local testing (strictly disabled in production)
+    ...(process.env.NODE_ENV !== "production"
+      ? [
+          CredentialsProvider({
+            id: "dev-sandbox",
+            name: "Development Sandbox Login",
+            credentials: {
+              email: { label: "Dev Email (for simulation)", type: "email", placeholder: "speaker@test.local" },
+              role: { label: "Role Preset", type: "text", placeholder: "speaker or listener" },
+            },
+            async authorize(credentials) {
+              if (process.env.NODE_ENV === "production") return null;
+              if (!credentials?.email) return null;
         
         const email = credentials.email.toLowerCase().trim();
         
@@ -68,8 +71,9 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
-  ],
-  session: {
+  ] : []),
+],
+session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
@@ -147,5 +151,10 @@ export const authOptions: NextAuthOptions = {
     signIn: "/auth/signin",
     error: "/auth/error",
   },
-  secret: process.env.NEXTAUTH_SECRET || "fallback-secret-for-dev-only",
+  secret: (() => {
+    if (process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_SECRET) {
+      throw new Error("CRITICAL SECURITY ERROR: NEXTAUTH_SECRET must be configured in production.");
+    }
+    return process.env.NEXTAUTH_SECRET || "fallback-secret-for-dev-only";
+  })(),
 };

@@ -67,10 +67,30 @@ export function setupSignaling(httpServer: HttpServer): SocketIOServer {
     let currentUserRole: ("CLIENT" | "LISTENER") | null = null;
     let currentUserId: string | null = null;
 
+    // Sliding-window message flood shield (anti-DoS per connection)
+    let eventCount = 0;
+    let windowStart = Date.now();
+    const isRateLimited = () => {
+      const now = Date.now();
+      if (now - windowStart > 5000) {
+        windowStart = now;
+        eventCount = 1;
+        return false;
+      }
+      eventCount++;
+      return eventCount > 60; // Max 60 events per 5 seconds
+    };
+
     socket.on("join-room", async (data: { sessionCode: string; userId: string; callToken?: string }) => {
       try {
         const { sessionCode, userId, callToken } = data;
         if (!sessionCode || !userId) return;
+
+        // In production, call token is mandatory
+        if (process.env.NODE_ENV === "production" && !callToken) {
+          socket.emit("error-message", { message: "Security error: Authorized call token is required." });
+          return;
+        }
 
         // Verify cryptographic call token if provided
         if (callToken) {
@@ -159,24 +179,29 @@ export function setupSignaling(httpServer: HttpServer): SocketIOServer {
       }
     });
 
-    // WebRTC Signaling relays
+    // WebRTC Signaling relays with strict room membership verification & flood protection
     socket.on("offer", (data: { sessionCode: string; sdp: RTCSessionDescriptionInit }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== data.sessionCode) return;
       socket.to(data.sessionCode).emit("offer", { sdp: data.sdp, fromRole: currentUserRole });
     });
 
     socket.on("answer", (data: { sessionCode: string; sdp: RTCSessionDescriptionInit }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== data.sessionCode) return;
       socket.to(data.sessionCode).emit("answer", { sdp: data.sdp, fromRole: currentUserRole });
     });
 
     socket.on("ice-candidate", (data: { sessionCode: string; candidate: RTCIceCandidateInit }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== data.sessionCode) return;
       socket.to(data.sessionCode).emit("ice-candidate", { candidate: data.candidate });
     });
 
     socket.on("media-state", (data: { sessionCode: string; isAudioMuted: boolean; isVideoOff: boolean }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== data.sessionCode) return;
       socket.to(data.sessionCode).emit("peer-media-state", data);
     });
 
     socket.on("recording-device-alert", (data: { sessionCode: string; deviceType: string }) => {
+      if (isRateLimited() || !currentRoomCode || currentRoomCode !== data.sessionCode) return;
       socket.to(data.sessionCode).emit("recording-device-warning", {
         deviceType: data.deviceType || "cell phone",
         timestamp: Date.now(),
@@ -184,7 +209,7 @@ export function setupSignaling(httpServer: HttpServer): SocketIOServer {
     });
 
     socket.on("heartbeat", (data: { sessionCode: string }) => {
-      if (currentRoomCode && currentUserId && activeRooms.has(currentRoomCode)) {
+      if (currentRoomCode && currentUserId && activeRooms.has(currentRoomCode) && currentRoomCode === data.sessionCode) {
         const participant = activeRooms.get(currentRoomCode)?.get(currentUserId);
         if (participant) {
           participant.lastHeartbeat = new Date();
@@ -193,13 +218,12 @@ export function setupSignaling(httpServer: HttpServer): SocketIOServer {
     });
 
     socket.on("end-call", (data: { sessionCode: string }) => {
-      if (currentRoomCode) {
-        io.to(currentRoomCode).emit("call-ended", {
-          endedByRole: currentUserRole,
-          reason: "USER_ENDED",
-        });
-        activeRooms.delete(currentRoomCode);
-      }
+      if (!currentRoomCode || currentRoomCode !== data.sessionCode) return;
+      io.to(currentRoomCode).emit("call-ended", {
+        endedByRole: currentUserRole,
+        reason: "USER_ENDED",
+      });
+      activeRooms.delete(currentRoomCode);
     });
 
     socket.on("disconnect", () => {
