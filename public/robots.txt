@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /talk
+Allow: /listen
+Allow: /pricing
+Allow: /terms
+Allow: /privacy
+Allow: /refund-policy
+Allow: /contact
+Allow: /safety
+
+Disallow: /call/
+Disallow: /account/
+Disallow: /earnings/
+Disallow: /api/

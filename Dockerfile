@@ -15,6 +15,7 @@ WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN mkdir -p /app/public
 
 # Set build-time defaults so Next.js static generation and Prisma generate succeed during image creation
 ENV NODE_ENV=production
