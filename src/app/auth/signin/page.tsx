@@ -13,6 +13,11 @@ export default function SignInPage() {
   const [devRole, setDevRole] = useState("speaker");
   const [loading, setLoading] = useState(false);
 
+  const [reviewerEmail, setReviewerEmail] = useState("reviewer@wehearapp.online");
+  const [reviewerPassword, setReviewerPassword] = useState("WeHearReview2026!");
+  const [showReviewerForm, setShowReviewerForm] = useState(false);
+  const [authError, setAuthError] = useState("");
+
   const handleGoogleSignIn = () => {
     if (!ageConfirmed) {
       alert("Please confirm you are at least 18 years old to use We Hear.");
@@ -26,6 +31,28 @@ export default function SignInPage() {
     signIn("google", { callbackUrl: devRole === "listener" ? "/listen" : "/talk" });
   };
 
+  const handleReviewerSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ageConfirmed) {
+      alert("Please confirm you are at least 18 years old.");
+      return;
+    }
+    setLoading(true);
+    setAuthError("");
+    const res = await signIn("credentials", {
+      email: reviewerEmail,
+      password: reviewerPassword,
+      redirect: false,
+      callbackUrl: "/talk",
+    });
+    if (res?.error) {
+      setAuthError("Invalid credentials. Please check username and password.");
+      setLoading(false);
+    } else if (res?.url) {
+      window.location.href = res.url;
+    }
+  };
+
   const handleDevSignIn = (role: "speaker" | "listener") => {
     if (!ageConfirmed) {
       alert("Please confirm you are at least 18 years old to use We Hear.");
@@ -37,9 +64,9 @@ export default function SignInPage() {
     }
     setLoading(true);
     const email = role === "speaker" ? "speaker@test.local" : "listener@test.local";
-    signIn("dev-sandbox", {
+    signIn("credentials", {
       email,
-      role,
+      password: "test1234",
       callbackUrl: role === "listener" ? "/listen" : "/talk",
     });
   };
@@ -124,6 +151,50 @@ export default function SignInPage() {
             </svg>
             <span>Continue with Google</span>
           </button>
+
+          <div className="pt-3 border-t border-border">
+            <button
+              type="button"
+              onClick={() => setShowReviewerForm(!showReviewerForm)}
+              className="w-full text-center text-xs text-slate-500 hover:text-slate-800 underline transition-colors"
+            >
+              {showReviewerForm ? "Hide test account sign-in" : "Sign in with Test / Reviewer Account"}
+            </button>
+
+            {showReviewerForm && (
+              <form onSubmit={handleReviewerSignIn} className="mt-3 space-y-2.5 bg-surface-muted p-3.5 rounded-xl border border-border">
+                <div className="text-[11px] font-semibold text-slate-700">Platform Reviewer Credentials</div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Email / Username</label>
+                  <input
+                    type="email"
+                    value={reviewerEmail}
+                    onChange={(e) => setReviewerEmail(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs border border-border rounded-lg bg-surface text-slate-800 font-mono"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={reviewerPassword}
+                    onChange={(e) => setReviewerPassword(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs border border-border rounded-lg bg-surface text-slate-800 font-mono"
+                    required
+                  />
+                </div>
+                {authError && <p className="text-[11px] text-red-600">{authError}</p>}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2 bg-primary-700 hover:bg-primary-800 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  {loading ? "Signing in..." : "Login with Test Account"}
+                </button>
+              </form>
+            )}
+          </div>
 
           {/* Dev Mode Simulation Login (strictly hidden in production builds) */}
           {process.env.NODE_ENV !== "production" && (

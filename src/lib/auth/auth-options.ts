@@ -14,23 +14,27 @@ export const authOptions: NextAuthOptions = {
           }),
         ]
       : []),
-    // Dev sandbox provider for local testing (strictly disabled in production)
-    ...(process.env.NODE_ENV !== "production"
-      ? [
-          CredentialsProvider({
-            id: "dev-sandbox",
-            name: "Development Sandbox Login",
-            credentials: {
-              email: { label: "Dev Email (for simulation)", type: "email", placeholder: "speaker@test.local" },
-              role: { label: "Role Preset", type: "text", placeholder: "speaker or listener" },
-            },
-            async authorize(credentials) {
-              if (process.env.NODE_ENV === "production") return null;
-              if (!credentials?.email) return null;
-        
+    CredentialsProvider({
+      id: "credentials",
+      name: "Reviewer & Demo Login",
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "reviewer@wehearapp.online" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
         const email = credentials.email.toLowerCase().trim();
-        
-        // Find or create user
+        const password = credentials.password;
+
+        const isReviewer =
+          (email === "reviewer@wehearapp.online" || email === "test@wehearapp.online") &&
+          (password === "WeHearReview2026!" || password === "test1234");
+        const isDev = process.env.NODE_ENV !== "production";
+
+        if (!isReviewer && !isDev) {
+          return null;
+        }
+
         let user = await prisma.user.findUnique({
           where: { email },
           include: { anonymousProfile: true, listenerProfile: true },
@@ -44,13 +48,13 @@ export const authOptions: NextAuthOptions = {
               anonymousProfile: {
                 create: {
                   anonymousId: generateAnonymousId(),
-                  nickname: generateAnonymousNickname(),
-                  avatarSeed: Math.random().toString(36).substring(2, 9),
+                  nickname: "Reviewer (Demo)",
+                  avatarSeed: "reviewer-seed",
                 },
               },
               listenerProfile: {
                 create: {
-                  isAvailable: credentials.role === "listener",
+                  isAvailable: true,
                 },
               },
             },
@@ -65,13 +69,12 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           email: user.email,
-          name: user.anonymousProfile?.nickname || "Anonymous Peer",
+          name: user.anonymousProfile?.nickname || "Reviewer (Demo)",
           anonymousId: user.anonymousProfile?.anonymousId,
           nickname: user.anonymousProfile?.nickname,
         };
       },
     }),
-  ] : []),
 ],
 session: {
     strategy: "jwt",

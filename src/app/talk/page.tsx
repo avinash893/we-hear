@@ -84,7 +84,18 @@ export default function TalkPage() {
 
       setSessionId(orderData.sessionId);
 
-      // 2. If Mock Payment (in local development or when live Razorpay is not configured)
+      // Ensure Razorpay script is loaded if not already present
+      if (!orderData.isMock && !(window as any).Razorpay) {
+        await new Promise<void>((resolve) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.razorpay.com/v1/checkout.js";
+          script.onload = () => resolve();
+          script.onerror = () => resolve();
+          document.body.appendChild(script);
+        });
+      }
+
+      // 2. If Mock Payment (in local development without Razorpay keys)
       if (orderData.isMock || !(window as any).Razorpay) {
         setStage("PAYING");
         // Simulate immediate verification
@@ -160,7 +171,7 @@ export default function TalkPage() {
 
   return (
     <>
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 max-w-lg mx-auto w-full">
         {/* Stage 1: Ready to Request */}
