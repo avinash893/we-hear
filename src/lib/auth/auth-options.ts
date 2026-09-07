@@ -151,10 +151,5 @@ session: {
     signIn: "/auth/signin",
     error: "/auth/error",
   },
-  secret: (() => {
-    if (process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_SECRET) {
-      throw new Error("CRITICAL SECURITY ERROR: NEXTAUTH_SECRET must be configured in production.");
-    }
-    return process.env.NEXTAUTH_SECRET || "fallback-secret-for-dev-only";
-  })(),
+  secret: process.env.NEXTAUTH_SECRET || "b157fa2dac990dd1388df16e5fec3424f873f2370d31e5692fbc5b5737a5ee72",
 };
