@@ -10,6 +10,13 @@ export const metadata: Metadata = {
     "A simple, calm, and private platform where you can talk anonymously with another human being. No introductions. No judgment. 100% peer support.",
   keywords: ["anonymous peer support", "listening platform", "mental wellness", "talk anonymously", "we hear"],
   authors: [{ name: "We Hear" }],
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export const viewport: Viewport = {

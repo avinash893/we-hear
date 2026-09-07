@@ -25,10 +25,8 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Col 1: Brand */}
           <div className="space-y-4 md:col-span-1">
-            <div className="flex items-center gap-2 text-primary-800 font-semibold tracking-tight text-lg">
-              <span className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700">
-                <HeartHandshake className="w-4 h-4" />
-              </span>
+            <div className="flex items-center gap-2.5 text-primary-900 font-semibold tracking-tight text-lg">
+              <img src="/favicon.svg" alt="We Hear Logo" className="w-8 h-8 rounded-xl shadow-xs shrink-0" />
               <span>We Hear</span>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed">

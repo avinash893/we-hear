@@ -15,10 +15,8 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo & Tagline */}
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 text-primary-800 font-semibold tracking-tight text-lg">
-              <span className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700">
-                <HeartHandshake className="w-4 h-4" />
-              </span>
+            <Link href="/" className="flex items-center gap-2.5 text-primary-900 font-semibold tracking-tight text-lg">
+              <img src="/favicon.svg" alt="We Hear Logo" className="w-8 h-8 rounded-xl shadow-xs shrink-0" />
               <span>We Hear</span>
             </Link>
             <span className="hidden md:inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200">
