@@ -57,11 +57,14 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      {/* 5. Contact Placeholder */}
+      {/* 5. Contact & Grievance */}
       <section className="space-y-2 p-4 rounded-xl bg-surface-muted border border-border text-xs">
-        <h3 className="font-semibold text-slate-900">Data Protection Officer / Grievance Officer:</h3>
+        <h3 className="font-semibold text-slate-900">Data Protection Officer & Grievance Redressal:</h3>
         <p>
-          [Placeholder: For privacy inquiries or grievance redressal under Indian Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, contact: privacy@wehear.example.com]
+          For privacy inquiries, data subject rights, or grievance redressal under Indian Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, contact:{" "}
+          <a href="mailto:support.wehear@gmail.com" className="font-mono text-primary-700 underline font-semibold">
+            support.wehear@gmail.com
+          </a>
         </p>
       </section>
     </div>

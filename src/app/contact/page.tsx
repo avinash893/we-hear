@@ -1,7 +1,7 @@
 import { Mail, MessageSquare, ShieldCheck, HeartHandshake } from "lucide-react";
 
 export default function ContactPage() {
-  const supportEmail = process.env.SUPPORT_EMAIL || "support@wehear.in";
+  const supportEmail = process.env.SUPPORT_EMAIL || "support.wehear@gmail.com";
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-16 sm:px-6 w-full space-y-8">
@@ -43,9 +43,12 @@ export default function ContactPage() {
             <p className="text-xs text-slate-600 leading-relaxed">
               To report community guideline violations or inappropriate peer behavior, report directly from the call screen or email:
             </p>
-            <span className="font-mono text-sm font-semibold text-slate-800 block mt-1">
-              safety@wehear.in
-            </span>
+            <a
+              href="mailto:support.wehear@gmail.com"
+              className="font-mono text-sm font-semibold text-slate-800 block mt-1 hover:underline"
+            >
+              support.wehear@gmail.com
+            </a>
           </div>
         </div>
 
@@ -61,7 +64,7 @@ export default function ContactPage() {
             <div className="text-xs text-slate-500 pt-1 space-y-0.5">
               <p><strong>Designation:</strong> Grievance Redressal Officer</p>
               <p><strong>Operating Region:</strong> India</p>
-              <p><strong>Email:</strong> grievance@wehear.in</p>
+              <p><strong>Email:</strong> <a href="mailto:support.wehear@gmail.com" className="font-mono underline text-slate-700">support.wehear@gmail.com</a></p>
             </div>
           </div>
         </div>

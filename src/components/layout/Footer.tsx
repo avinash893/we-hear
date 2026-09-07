@@ -2,7 +2,7 @@ import Link from "next/link";
 import { HeartHandshake, ShieldAlert } from "lucide-react";
 
 export default function Footer() {
-  const supportEmail = process.env.SUPPORT_EMAIL || "support@wehear.example.com";
+  const supportEmail = process.env.SUPPORT_EMAIL || "support.wehear@gmail.com";
 
   return (
     <footer className="bg-warm-100/70 border-t border-border mt-auto">
