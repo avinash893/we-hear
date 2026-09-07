@@ -25,7 +25,7 @@ function isOriginAllowed(origin, callback) {
     "http://127.0.0.1:3000",
   ].filter(Boolean);
 
-  const isAllowed = allowedOrigins.some((allowed) => {
+  let isAllowed = allowedOrigins.some((allowed) => {
     try {
       const allowedUrl = new URL(allowed);
       const originUrl = new URL(origin);
@@ -34,6 +34,18 @@ function isOriginAllowed(origin, callback) {
       return origin === allowed || origin.startsWith(allowed);
     }
   });
+
+  // Automatically trust Northflank deployment URLs
+  if (!isAllowed) {
+    try {
+      const originUrl = new URL(origin);
+      if (originUrl.hostname.endsWith(".northflank.app")) {
+        isAllowed = true;
+      }
+    } catch {
+      // Invalid URL format
+    }
+  }
 
   if (isAllowed || process.env.NODE_ENV !== "production") {
     callback(null, true);
