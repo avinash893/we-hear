@@ -35,11 +35,11 @@ function isOriginAllowed(origin, callback) {
     }
   });
 
-  // Automatically trust Northflank deployment URLs
+  // Automatically trust Northflank deployment URLs (*.code.run and *.northflank.app)
   if (!isAllowed) {
     try {
       const originUrl = new URL(origin);
-      if (originUrl.hostname.endsWith(".northflank.app")) {
+      if (originUrl.hostname.endsWith(".code.run") || originUrl.hostname.endsWith(".northflank.app")) {
         isAllowed = true;
       }
     } catch {
