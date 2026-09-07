@@ -3,16 +3,7 @@ import { ShieldAlert, AlertTriangle } from "lucide-react";
 export default function TermsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-16 sm:px-6 w-full space-y-8 text-sm text-slate-700 leading-relaxed">
-      {/* Notice Banner */}
-      <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-bold">LEGAL NOTICE & DISCLAIMER:</p>
-          <p>
-            Have this document reviewed by a qualified lawyer before production launch. The provisions below represent the operating principles, acceptable use policies, and terms of service for We Hear.
-          </p>
-        </div>
-      </div>
+
 
       <div className="space-y-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">

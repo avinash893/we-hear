@@ -1,7 +1,7 @@
 import { Mail, MessageSquare, ShieldCheck, HeartHandshake } from "lucide-react";
 
 export default function ContactPage() {
-  const supportEmail = process.env.SUPPORT_EMAIL || "support@wehear.example.com";
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@wehear.in";
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-16 sm:px-6 w-full space-y-8">
@@ -11,7 +11,7 @@ export default function ContactPage() {
         </span>
         <h1 className="text-3xl font-serif text-slate-900 font-normal mt-2">Contact Us</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Have a question about your account, payment, or platform safety? We are here to help.
+          Have questions about your account, payment, session, or privacy? We are here to help.
         </p>
       </div>
 
@@ -20,14 +20,14 @@ export default function ContactPage() {
           <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-800 flex items-center justify-center shrink-0">
             <Mail className="w-6 h-6" />
           </div>
-          <div>
-            <h2 className="text-base font-medium text-slate-900">Email Support</h2>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              Our team responds to all queries within 24 business hours. For session-related questions, please include your anonymous session code.
+          <div className="space-y-1">
+            <h2 className="text-base font-medium text-slate-900">Customer Care & Support</h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Our support team operates Monday to Saturday, 9:00 AM – 8:00 PM IST. We respond to all queries within 24 business hours.
             </p>
             <a
               href={`mailto:${supportEmail}`}
-              className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-primary-700 hover:text-primary-800 font-mono underline"
+              className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-primary-700 hover:text-primary-800 font-mono underline"
             >
               {supportEmail}
             </a>
@@ -38,12 +38,31 @@ export default function ContactPage() {
           <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-6 h-6" />
           </div>
-          <div>
-            <h2 className="text-base font-medium text-slate-900">Report a Safety Concern</h2>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              If you experienced inappropriate behavior during a call, you can report it directly inside the call screen or email us at{" "}
-              <span className="font-mono text-slate-800">safety@wehear.example.com</span>. All safety inquiries are treated with strict confidentiality.
+          <div className="space-y-1">
+            <h2 className="text-base font-medium text-slate-900">Safety & Trust Team</h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              To report community guideline violations or inappropriate peer behavior, report directly from the call screen or email:
             </p>
+            <span className="font-mono text-sm font-semibold text-slate-800 block mt-1">
+              safety@wehear.in
+            </span>
+          </div>
+        </div>
+
+        <div className="pt-6 border-t border-border flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+            <HeartHandshake className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-medium text-slate-900">Grievance Redressal & Operations</h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              In accordance with the Information Technology Act 2000 and consumer protection guidelines, grievances are handled by our designated Grievance Officer.
+            </p>
+            <div className="text-xs text-slate-500 pt-1 space-y-0.5">
+              <p><strong>Designation:</strong> Grievance Redressal Officer</p>
+              <p><strong>Operating Region:</strong> India</p>
+              <p><strong>Email:</strong> grievance@wehear.in</p>
+            </div>
           </div>
         </div>
       </div>
