@@ -76,7 +76,7 @@ export function verifyCaptchaSolution(userAnswer: string, token: string): boolea
  * Validates Cloudflare Turnstile token if configured in production
  */
 export async function verifyTurnstileToken(token: string, ip?: string): Promise<boolean> {
-  const secretKey = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+  const secretKey = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY || "0x4AAAAAAFUHYKaX4azNNOD4el9OJk_IhXA";
   if (!secretKey) {
     // If turnstile secret is not set, allow fallback to internal cryptographic captcha
     return true;

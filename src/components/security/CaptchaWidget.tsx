@@ -17,7 +17,7 @@ export default function CaptchaWidget({ onValidated, className = "" }: CaptchaWi
 
   const siteKey =
     process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY ||
-    "1x00000000000000000000AA"; // Cloudflare official testing sitekey (always succeeds)
+    "0x4AAAAAAFUHYBA0aPw503Jy";
 
   const renderTurnstile = () => {
     if (typeof window === "undefined" || !(window as any).turnstile || !containerRef.current) {
