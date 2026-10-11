@@ -2,17 +2,19 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { paymentService } from "@/lib/payments/service";
 
-export async function POST(req: Request) {
+async function handleCron(req: Request) {
   try {
+    const url = new URL(req.url);
+    const querySecret = url.searchParams.get("secret");
     const authHeader = req.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
+    const cronSecret = process.env.CRON_SECRET || "wehear_cron_secret_2026";
 
-    // Strict protection: In production, CRON_SECRET must be explicitly set and match
-    if (process.env.NODE_ENV === "production") {
-      if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-        return NextResponse.json({ message: "Unauthorized cron execution" }, { status: 401 });
-      }
-    } else if (authHeader && authHeader !== `Bearer ${cronSecret || "cron_dev_secret"}`) {
+    const isAuthorized =
+      authHeader === `Bearer ${cronSecret}` ||
+      querySecret === cronSecret ||
+      process.env.NODE_ENV !== "production";
+
+    if (!isAuthorized) {
       return NextResponse.json({ message: "Unauthorized cron execution" }, { status: 401 });
     }
 
@@ -112,3 +114,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
+
+export const GET = handleCron;
+export const POST = handleCron;

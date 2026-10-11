@@ -1,0 +1,16 @@
+name: Expire Stale Matches Cron
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  expire-matches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Match Expiration Endpoint
+        run: |
+          curl -f -s -X POST "https://wehearapp.online/api/cron/expire-matches" \
+            -H "Authorization: Bearer wehear_cron_secret_2026" \
+            -H "Content-Type: application/json"
