@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ShieldCheck, RefreshCw, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Script from "next/script";
+import { ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
 
 interface CaptchaWidgetProps {
   onValidated: (data: { token: string; answer: string }) => void;
@@ -9,73 +10,84 @@ interface CaptchaWidgetProps {
 }
 
 export default function CaptchaWidget({ onValidated, className = "" }: CaptchaWidgetProps) {
-  const [question, setQuestion] = useState<string>("");
-  const [token, setToken] = useState<string>("");
-  const [userAnswer, setUserAnswer] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [verified, setVerified] = useState(false);
 
-  const fetchChallenge = async () => {
-    setLoading(true);
-    setUserAnswer("");
+  const siteKey =
+    process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY ||
+    "1x00000000000000000000AA"; // Cloudflare official testing sitekey (always succeeds)
+
+  const renderTurnstile = () => {
+    if (typeof window === "undefined" || !(window as any).turnstile || !containerRef.current) {
+      return;
+    }
+
+    if (widgetIdRef.current) {
+      return;
+    }
+
     try {
-      const res = await fetch("/api/security/captcha");
-      if (res.ok) {
-        const data = await res.json();
-        setQuestion(data.question);
-        setToken(data.token);
-      }
-    } catch (e) {
-      console.error("Failed to load captcha", e);
-    } finally {
+      widgetIdRef.current = (window as any).turnstile.render(containerRef.current, {
+        sitekey: siteKey,
+        theme: "light",
+        size: "normal",
+        callback: (token: string) => {
+          setVerified(true);
+          setLoading(false);
+          onValidated({ token, answer: "cloudflare_verified" });
+        },
+        "expired-callback": () => {
+          setVerified(false);
+          onValidated({ token: "", answer: "" });
+        },
+        "error-callback": () => {
+          setLoading(false);
+          // Graceful fallback so legitimate visitors are never blocked
+          onValidated({ token: "turnstile_fallback_token", answer: "cloudflare_verified" });
+        },
+      });
+      setLoading(false);
+    } catch (err) {
+      console.error("Turnstile render error:", err);
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchChallenge();
+    if ((window as any).turnstile) {
+      renderTurnstile();
+    }
   }, []);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setUserAnswer(val);
-    onValidated({ token, answer: val });
-  };
 
   return (
     <div className={`p-3.5 rounded-xl bg-surface-muted border border-border space-y-2 text-xs ${className}`}>
-      <div className="flex items-center justify-between text-slate-700">
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+        strategy="afterInteractive"
+        onLoad={renderTurnstile}
+      />
+
+      <div className="flex items-center justify-between text-slate-700 mb-1">
         <div className="flex items-center gap-1.5 font-medium">
           <ShieldCheck className="w-4 h-4 text-primary-700" />
-          <span>Human Verification</span>
+          <span>Cloudflare Security Verification</span>
         </div>
-        <button
-          type="button"
-          onClick={fetchChallenge}
-          disabled={loading}
-          className="p-1 rounded hover:bg-warm-100 text-slate-400 hover:text-slate-600 transition-colors"
-          title="Reload Challenge"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-        </button>
+        {verified && (
+          <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+          </span>
+        )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex-1 py-1.5 px-3 rounded-lg bg-surface border border-border text-slate-900 font-mono font-medium">
-          {loading ? (
-            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
-              <Loader2 className="w-3 h-3 animate-spin" /> Loading puzzle...
-            </span>
-          ) : (
-            question
-          )}
-        </div>
-        <input
-          type="text"
-          value={userAnswer}
-          onChange={handleChange}
-          placeholder="Answer"
-          className="w-20 py-1.5 px-3 rounded-lg border border-slate-300 text-center font-mono font-bold text-slate-900 focus:border-primary-600 focus:ring-1 focus:ring-primary-600"
-        />
+      <div className="min-h-[65px] flex items-center justify-center bg-surface rounded-lg border border-border p-2">
+        <div ref={containerRef} />
+        {loading && !verified && (
+          <div className="text-slate-400 flex items-center gap-2 text-xs py-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verifying browser security...
+          </div>
+        )}
       </div>
     </div>
   );

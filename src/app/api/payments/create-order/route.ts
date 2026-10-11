@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth/auth-options";
 import { prisma } from "@/lib/db";
 import { paymentService } from "@/lib/payments/service";
 import { checkRateLimit, getClientIp } from "@/lib/security/rateLimiter";
-import { verifyCaptchaSolution } from "@/lib/security/captcha";
+import { verifyCaptchaSolution, verifyTurnstileToken } from "@/lib/security/captcha";
 import { detectCountry, getRegionalPricing } from "@/lib/payments/pricing";
 import crypto from "crypto";
 
@@ -29,7 +29,12 @@ export async function POST(req: Request) {
     // Optional CAPTCHA verification if provided
     try {
       const body = await req.clone().json();
-      if (body.captchaToken && body.captchaAnswer) {
+      if (body.turnstileToken) {
+        const isValid = await verifyTurnstileToken(body.turnstileToken, ip);
+        if (!isValid) {
+          return NextResponse.json({ message: "Security verification failed. Please complete verification." }, { status: 400 });
+        }
+      } else if (body.captchaToken && body.captchaAnswer) {
         const isValid = verifyCaptchaSolution(body.captchaAnswer, body.captchaToken);
         if (!isValid) {
           return NextResponse.json({ message: "Security verification failed. Please check the answer." }, { status: 400 });

@@ -24,7 +24,7 @@ export default function SignInPage() {
       return;
     }
     if (!captchaData?.answer) {
-      alert("Please complete the human verification puzzle below.");
+      alert("Please complete the Cloudflare security verification below.");
       return;
     }
     setLoading(true);
