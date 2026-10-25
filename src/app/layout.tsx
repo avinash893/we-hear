@@ -3,6 +3,7 @@ import "./globals.css";
 import AuthProvider from "@/components/providers/AuthProvider";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import ChatbotWidget from "@/components/chat/ChatbotWidget";
 
 export const metadata: Metadata = {
   title: "We Hear — Anonymous 1-to-1 Peer Support Video Calling",
@@ -37,6 +38,7 @@ export default function RootLayout({
           <Navbar />
           <main className="flex-1 flex flex-col">{children}</main>
           <Footer />
+          <ChatbotWidget />
         </AuthProvider>
       </body>
     </html>
