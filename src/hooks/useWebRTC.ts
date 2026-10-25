@@ -45,13 +45,29 @@ export function useWebRTC({
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const isInitiatorRef = useRef(role === "CLIENT");
 
-  // Initialize media devices
+  // Keep HTML video elements synced with streams as soon as the DOM nodes mount
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      if (localVideoRef.current.srcObject !== localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+    }
+    if (remoteVideoRef.current && remoteStreamRef.current) {
+      if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      }
+    }
+  });
+
+  // Initialize media devices with resilient fallback
   const initMedia = useCallback(async () => {
     try {
+      // 1. Try standard user-facing video + audio
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -61,13 +77,32 @@ export function useWebRTC({
         localVideoRef.current.srcObject = stream;
       }
       return stream;
-    } catch (err: any) {
-      console.error("Camera/Mic permission error:", err);
-      setConnectionState("PERMISSION_DENIED");
-      setErrorMessage(
-        "Camera or microphone permission was denied. Please allow access in browser settings to continue."
-      );
-      throw err;
+    } catch (videoErr: any) {
+      console.warn("Standard camera/mic access failed or denied, trying fallback:", videoErr);
+      try {
+        // 2. Fallback to basic audio only
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+        localStreamRef.current = audioStream;
+        setIsVideoOff(true);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = null;
+        }
+        return audioStream;
+      } catch (audioErr: any) {
+        console.warn("All media devices denied or absent, proceeding in signaling mode:", audioErr);
+        // 3. Fallback to dummy silent/black stream so socket signaling and connection state succeed
+        const emptyStream = new MediaStream();
+        localStreamRef.current = emptyStream;
+        setIsVideoOff(true);
+        setIsAudioMuted(true);
+        setErrorMessage(
+          "Camera/microphone not detected or permission denied. Joined in signaling/test mode."
+        );
+        return emptyStream;
+      }
     }
   }, []);
 
@@ -101,8 +136,11 @@ export function useWebRTC({
 
         // Handle incoming remote tracks
         pc.ontrack = (event) => {
-          if (remoteVideoRef.current && event.streams[0]) {
-            remoteVideoRef.current.srcObject = event.streams[0];
+          if (event.streams && event.streams[0]) {
+            remoteStreamRef.current = event.streams[0];
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = event.streams[0];
+            }
           }
         };
 
@@ -209,6 +247,15 @@ export function useWebRTC({
           if (onCallEnded) onCallEnded(endedByRole);
         });
 
+        socket.on("connect_error", (err) => {
+          console.error("Socket signaling connection error:", err.message);
+          setErrorMessage(`Signaling connection error: ${err.message}`);
+        });
+
+        socket.on("reconnect", () => {
+          socket.emit("join-room", { sessionCode, callToken, userId, role });
+        });
+
         socket.on("error-message", ({ message }) => {
           setConnectionState("ERROR");
           setErrorMessage(message);
@@ -233,7 +280,7 @@ export function useWebRTC({
         socketRef.current.disconnect();
       }
     };
-  }, [sessionCode, userId, role, initMedia, onCallEnded]);
+  }, [enabled, sessionCode, userId, role, callToken, initMedia, onCallEnded, onRecordingWarning]);
 
   // Toggle audio track (mute/unmute)
   const toggleAudio = useCallback(() => {

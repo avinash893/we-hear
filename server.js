@@ -3,7 +3,7 @@ const next = require("next");
 const { Server } = require("socket.io");
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = "localhost";
+const hostname = process.env.HOSTNAME || "0.0.0.0";
 const port = parseInt(process.env.PORT || "3000", 10);
 
 const app = next({ dev, hostname, port });
@@ -21,6 +21,8 @@ function isOriginAllowed(origin, callback) {
   const allowedOrigins = [
     process.env.NEXTAUTH_URL,
     process.env.NEXT_PUBLIC_APP_URL,
+    "https://wehearapp.online",
+    "https://www.wehearapp.online",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
   ].filter(Boolean);
@@ -35,11 +37,18 @@ function isOriginAllowed(origin, callback) {
     }
   });
 
-  // Automatically trust Northflank deployment URLs (*.code.run and *.northflank.app)
+  // Automatically trust Northflank deployment URLs (*.code.run and *.northflank.app) and We Hear domains
   if (!isAllowed) {
     try {
       const originUrl = new URL(origin);
-      if (originUrl.hostname.endsWith(".code.run") || originUrl.hostname.endsWith(".northflank.app")) {
+      if (
+        originUrl.hostname === "wehearapp.online" ||
+        originUrl.hostname.endsWith(".wehearapp.online") ||
+        originUrl.hostname.endsWith(".code.run") ||
+        originUrl.hostname.endsWith(".northflank.app") ||
+        originUrl.hostname === "localhost" ||
+        originUrl.hostname === "127.0.0.1"
+      ) {
         isAllowed = true;
       }
     } catch {
@@ -96,8 +105,10 @@ app.prepare().then(() => {
     socket.on("join-room", ({ sessionCode, callToken, userId, role }) => {
       if (!sessionCode || !userId) return;
 
-      // In production, call token is mandatory
-      if (process.env.NODE_ENV === "production" && !callToken) {
+      const isDemoRoom = sessionCode.startsWith("room_demo_");
+
+      // In production, call token is mandatory for paid rooms
+      if (process.env.NODE_ENV === "production" && !callToken && !isDemoRoom) {
         socket.emit("error-message", { message: "Security error: Authorized call token is required." });
         return;
       }
@@ -109,21 +120,28 @@ app.prepare().then(() => {
           const decoded = Buffer.from(callToken, "base64").toString("utf8");
           const [tCode, tUser, tRole, tExp, tSig] = decoded.split(":");
           if (Date.now() > parseInt(tExp, 10) || tCode !== sessionCode || tUser !== userId) {
-            socket.emit("error-message", { message: "Security authorization error: Token mismatch or expired." });
-            return;
-          }
-          const crypto = require("crypto");
-          const payload = `${tCode}:${tUser}:${tRole}:${tExp}`;
-          const expectedSig = crypto.createHmac("sha256", tokenSecret).update(payload).digest("hex");
-          const expBuf = Buffer.from(expectedSig);
-          const sigBuf = Buffer.from(tSig || "");
-          if (expBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expBuf, sigBuf)) {
-            socket.emit("error-message", { message: "Security error: Tampered room token detected." });
-            return;
+            if (!isDemoRoom) {
+              socket.emit("error-message", { message: "Security authorization error: Token mismatch or expired." });
+              return;
+            }
+          } else {
+            const crypto = require("crypto");
+            const payload = `${tCode}:${tUser}:${tRole}:${tExp}`;
+            const expectedSig = crypto.createHmac("sha256", tokenSecret).update(payload).digest("hex");
+            const expBuf = Buffer.from(expectedSig);
+            const sigBuf = Buffer.from(tSig || "");
+            if (expBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expBuf, sigBuf)) {
+              if (!isDemoRoom) {
+                socket.emit("error-message", { message: "Security error: Tampered room token detected." });
+                return;
+              }
+            }
           }
         } catch (e) {
-          socket.emit("error-message", { message: "Security error: Malformed room token." });
-          return;
+          if (!isDemoRoom) {
+            socket.emit("error-message", { message: "Security error: Malformed room token." });
+            return;
+          }
         }
       }
 

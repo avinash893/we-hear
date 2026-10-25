@@ -393,8 +393,8 @@ export default function CallPage() {
           </div>
         )}
 
-        {/* Anti-Screen-Recording Privacy Shield Overlay */}
-        {privacyShield.isShieldActive && (
+        {/* Anti-Screen-Recording Privacy Shield Overlay (disabled in demo mode for multi-tab testing) */}
+        {!sessionInfo.isDemo && privacyShield.isShieldActive && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-black/85 backdrop-blur-xl text-center space-y-3 animate-in fade-in">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
               <Lock className="w-6 h-6" />
@@ -411,8 +411,11 @@ export default function CallPage() {
           ref={remoteVideoRef}
           autoPlay
           playsInline
+          onLoadedMetadata={(e) => {
+            e.currentTarget.play().catch(() => {});
+          }}
           className={`w-full h-full object-cover transition-all duration-300 ${
-            privacyShield.isShieldActive ? "filter blur-3xl opacity-10" : ""
+            !sessionInfo.isDemo && privacyShield.isShieldActive ? "filter blur-3xl opacity-10" : ""
           } ${
             connectionState === "CONNECTED" && !peerMediaState.isVideoOff ? "opacity-100" : "opacity-0"
           }`}
@@ -468,6 +471,9 @@ export default function CallPage() {
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
             className={`w-full h-full object-cover ${isVideoOff ? "hidden" : "block"}`}
           />
           {isVideoOff && (
