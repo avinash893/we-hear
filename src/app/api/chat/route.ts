@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkRateLimit, getClientIp } from "@/lib/security/rateLimiter";
+import { checkRateLimitAsync, getClientIp } from "@/lib/security/rateLimiter";
 
 const SYSTEM_INSTRUCTION = `You are the official AI Guide for "We Hear" (https://wehearapp.online) — a private, anonymous 1-on-1 peer-support video and audio calling platform.
 
@@ -47,8 +47,8 @@ export async function POST(req: Request) {
   try {
     const ip = getClientIp(req);
 
-    // Rate Limiting: 8 requests per minute per IP to protect Gemini API quota
-    const limit = checkRateLimit(ip, "chat_ai", 8, 60);
+    // Rate Limiting: 8 requests per minute per IP via Redis / resilient memory
+    const limit = await checkRateLimitAsync(ip, "chat_ai", 8, 60);
     if (!limit.allowed) {
       return NextResponse.json(
         {

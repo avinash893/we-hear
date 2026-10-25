@@ -3,14 +3,14 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import { prisma } from "@/lib/db";
 import { attemptMatch } from "@/server/matchmaking/queue";
-import { checkRateLimit, getClientIp } from "@/lib/security/rateLimiter";
+import { checkRateLimitAsync, getClientIp } from "@/lib/security/rateLimiter";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
   try {
     const ip = getClientIp(req);
     // Rate limit: Max 10 demo call sessions per 10 minutes per IP
-    const rateLimit = checkRateLimit(ip, "demo_call", 10, 10 * 60);
+    const rateLimit = await checkRateLimitAsync(ip, "demo_call", 10, 10 * 60);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { message: `Too many demo requests. Please retry in ${rateLimit.resetSeconds}s.` },

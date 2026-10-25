@@ -1,3 +1,5 @@
+import { getRedisClient } from "@/lib/redis";
+
 interface RateLimitRecord {
   timestamps: number[];
   lastSeen: number;
@@ -77,6 +79,64 @@ export function checkRateLimit(
     remaining: maxRequests - record.timestamps.length,
     resetSeconds: windowSeconds,
   };
+}
+
+/**
+ * Distributed sliding-window rate limit checker powered by Redis Cloud,
+ * with automatic, transparent fallback to in-memory store.
+ */
+export async function checkRateLimitAsync(
+  identifier: string,
+  action: "auth" | "payment" | "report" | "availability" | "chat_ai" | "demo_call" | "general" | (string & {}),
+  maxRequests = 60,
+  windowSeconds = 60
+): Promise<RateLimitResult> {
+  const redis = getRedisClient();
+  if (!redis) {
+    return checkRateLimit(identifier, action, maxRequests, windowSeconds);
+  }
+
+  const key = `rl:${action}:${identifier}`;
+  const now = Date.now();
+  const windowMs = windowSeconds * 1000;
+  const threshold = now - windowMs;
+
+  try {
+    const pipeline = redis.pipeline();
+    pipeline.zremrangebyscore(key, 0, threshold);
+    pipeline.zcard(key);
+    const results = await pipeline.exec();
+
+    if (!results || !results[1]) {
+      return checkRateLimit(identifier, action, maxRequests, windowSeconds);
+    }
+
+    const currentCount = typeof results[1][1] === "number" ? results[1][1] : 0;
+
+    if (currentCount >= maxRequests) {
+      return {
+        allowed: false,
+        limit: maxRequests,
+        remaining: 0,
+        resetSeconds: windowSeconds,
+      };
+    }
+
+    const addPipeline = redis.pipeline();
+    addPipeline.zadd(key, now, `${now}:${Math.random().toString(36).substring(2, 7)}`);
+    addPipeline.expire(key, windowSeconds + 10);
+    await addPipeline.exec();
+
+    return {
+      allowed: true,
+      limit: maxRequests,
+      remaining: Math.max(0, maxRequests - (currentCount + 1)),
+      resetSeconds: windowSeconds,
+    };
+  } catch (err) {
+    console.warn("Redis rate limiter warning (falling back to memory):", err);
+    return checkRateLimit(identifier, action, maxRequests, windowSeconds);
+  }
 }
 
 /**
