@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Mic,
@@ -79,9 +79,9 @@ export default function CallPage() {
     }
   }, [authStatus, router, sessionCode]);
 
-  const handleRecordingWarning = (warning: { deviceType: string; timestamp: number }) => {
+  const handleRecordingWarning = useCallback((warning: { deviceType: string; timestamp: number }) => {
     setRecordingDeviceAlert(warning);
-  };
+  }, []);
 
   // Fetch session details securely
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function CallPage() {
   }, [sessionCode, session]);
 
   // Handle server call completion
-  const handleCallEndedCallback = async (endedByRole: string) => {
+  const handleCallEndedCallback = useCallback(async (endedByRole: string) => {
     setCallEndedInfo({ ended: true, endedByRole });
     try {
       const res = await fetch("/api/calls/complete", {
@@ -126,7 +126,7 @@ export default function CallPage() {
     } catch (e) {
       console.error("Failed to complete call on server:", e);
     }
-  };
+  }, [sessionCode]);
 
   const userId = session?.user?.id || "";
   const role = sessionInfo?.role || "CLIENT";
@@ -139,6 +139,8 @@ export default function CallPage() {
     peerMediaState,
     localVideoRef,
     remoteVideoRef,
+    setLocalVideoNode,
+    setRemoteVideoNode,
     toggleAudio,
     toggleVideo,
     endCall,
@@ -475,7 +477,7 @@ export default function CallPage() {
 
         {/* Remote Video (Fills Viewport) */}
         <video
-          ref={remoteVideoRef}
+          ref={setRemoteVideoNode}
           autoPlay
           playsInline
           onLoadedMetadata={(e) => {
@@ -539,7 +541,7 @@ export default function CallPage() {
         {/* Local Video Picture-in-Picture (Desktop: bottom right, Mobile: top right / overlay) */}
         <div className="absolute bottom-24 right-4 sm:bottom-28 sm:right-8 z-20 w-28 sm:w-44 aspect-video rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-700/80 shadow-2xl transition-all">
           <video
-            ref={localVideoRef}
+            ref={setLocalVideoNode}
             autoPlay
             playsInline
             muted

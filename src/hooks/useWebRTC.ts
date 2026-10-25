@@ -41,6 +41,10 @@ export function useWebRTC({
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [peerMediaState, setPeerMediaState] = useState({ isAudioMuted: false, isVideoOff: false });
 
+  // Stream state to trigger reactive DOM bindings without re-render cascades
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -50,22 +54,56 @@ export function useWebRTC({
   const socketRef = useRef<Socket | null>(null);
   const isInitiatorRef = useRef(role === "CLIENT");
 
-  // Keep HTML video elements synced with streams as soon as the DOM nodes mount
-  useEffect(() => {
-    if (localVideoRef.current && localStreamRef.current) {
-      if (localVideoRef.current.srcObject !== localStreamRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
-      }
-    }
-    if (remoteVideoRef.current && remoteStreamRef.current) {
-      if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      }
-    }
-  });
+  // Stable callback refs so consumer re-renders NEVER cause socket or camera disconnects
+  const onCallEndedRef = useRef(onCallEnded);
+  onCallEndedRef.current = onCallEnded;
 
-  // Initialize media devices with resilient fallback
+  const onRecordingWarningRef = useRef(onRecordingWarning);
+  onRecordingWarningRef.current = onRecordingWarning;
+
+  // Callback ref for local video: mounts stream immediately as soon as DOM element exists
+  const setLocalVideoNode = useCallback((node: HTMLVideoElement | null) => {
+    localVideoRef.current = node;
+    if (node && localStreamRef.current) {
+      if (node.srcObject !== localStreamRef.current) {
+        node.srcObject = localStreamRef.current;
+      }
+    }
+  }, []);
+
+  // Callback ref for remote video: mounts stream immediately as soon as DOM element exists
+  const setRemoteVideoNode = useCallback((node: HTMLVideoElement | null) => {
+    remoteVideoRef.current = node;
+    if (node && remoteStreamRef.current) {
+      if (node.srcObject !== remoteStreamRef.current) {
+        node.srcObject = remoteStreamRef.current;
+      }
+    }
+  }, []);
+
+  // Sync streams to video elements when state changes
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      if (localVideoRef.current.srcObject !== localStream) {
+        localVideoRef.current.srcObject = localStream;
+      }
+    }
+  }, [localStream]);
+
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      if (remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+    }
+  }, [remoteStream]);
+
+  // Initialize media devices with resilient fallback (reuses active stream to prevent blinking)
   const initMedia = useCallback(async () => {
+    if (localStreamRef.current && localStreamRef.current.active) {
+      return localStreamRef.current;
+    }
+
     try {
       // 1. Try standard user-facing video + audio
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -73,6 +111,7 @@ export function useWebRTC({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       localStreamRef.current = stream;
+      setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
@@ -86,6 +125,7 @@ export function useWebRTC({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
         localStreamRef.current = audioStream;
+        setLocalStream(audioStream);
         setIsVideoOff(true);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = null;
@@ -96,6 +136,7 @@ export function useWebRTC({
         // 3. Fallback to dummy silent/black stream so socket signaling and connection state succeed
         const emptyStream = new MediaStream();
         localStreamRef.current = emptyStream;
+        setLocalStream(emptyStream);
         setIsVideoOff(true);
         setIsAudioMuted(true);
         setErrorMessage(
@@ -106,9 +147,8 @@ export function useWebRTC({
     }
   }, []);
 
-  // Initialize WebRTC and Socket.IO
+  // Initialize WebRTC and Socket.IO (runs ONLY when connection credentials change, NOT on parent re-renders)
   useEffect(() => {
-    // Only request media and connect socket once authorized with valid user and session
     if (enabled === false || !userId || !sessionCode) {
       return;
     }
@@ -120,9 +160,17 @@ export function useWebRTC({
         const stream = await initMedia();
         if (!isMounted) return;
 
+        // Disconnect existing socket if any
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+        }
+
         // Initialize Socket.io signaling
         const socket = io({
           transports: ["websocket", "polling"],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
         });
         socketRef.current = socket;
 
@@ -138,6 +186,7 @@ export function useWebRTC({
         pc.ontrack = (event) => {
           if (event.streams && event.streams[0]) {
             remoteStreamRef.current = event.streams[0];
+            setRemoteStream(event.streams[0]);
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = event.streams[0];
             }
@@ -146,7 +195,7 @@ export function useWebRTC({
 
         // Handle ICE candidates
         pc.onicecandidate = (event) => {
-          if (event.candidate) {
+          if (event.candidate && socket.connected) {
             socket.emit("ice-candidate", {
               sessionCode,
               candidate: event.candidate,
@@ -235,16 +284,16 @@ export function useWebRTC({
         });
 
         socket.on("recording-device-warning", (warning) => {
-          if (onRecordingWarning) onRecordingWarning(warning);
+          onRecordingWarningRef.current?.(warning);
         });
 
-        socket.on("peer-disconnected", ({ graceSeconds }) => {
+        socket.on("peer-disconnected", () => {
           setConnectionState("PEER_DISCONNECTED");
         });
 
         socket.on("call-ended", ({ endedByRole }) => {
           setConnectionState("ENDED");
-          if (onCallEnded) onCallEnded(endedByRole);
+          onCallEndedRef.current?.(endedByRole);
         });
 
         socket.on("connect_error", (err) => {
@@ -269,18 +318,21 @@ export function useWebRTC({
 
     return () => {
       isMounted = false;
-      // Cleanup tracks & peer connection
+      // Cleanup tracks & peer connection only when unmounting or parameters genuinely change
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
       }
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
       }
       if (socketRef.current) {
         socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
-  }, [enabled, sessionCode, userId, role, callToken, initMedia, onCallEnded, onRecordingWarning]);
+  }, [enabled, sessionCode, userId, role, callToken, initMedia]);
 
   // Toggle audio track (mute/unmute)
   const toggleAudio = useCallback(() => {
@@ -320,8 +372,8 @@ export function useWebRTC({
   const endCall = useCallback(() => {
     socketRef.current?.emit("end-call", { sessionCode, endedByRole: role });
     setConnectionState("ENDED");
-    if (onCallEnded) onCallEnded(role);
-  }, [sessionCode, role, onCallEnded]);
+    onCallEndedRef.current?.(role);
+  }, [sessionCode, role]);
 
   // Dispatch recording device detection alert to other peer
   const notifyDeviceDetected = useCallback(
@@ -342,6 +394,8 @@ export function useWebRTC({
     peerMediaState,
     localVideoRef,
     remoteVideoRef,
+    setLocalVideoNode,
+    setRemoteVideoNode,
     toggleAudio,
     toggleVideo,
     endCall,
