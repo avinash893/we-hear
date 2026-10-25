@@ -18,6 +18,8 @@ import {
   ArrowLeft,
   Volume2,
   AlertTriangle,
+  Share2,
+  Sparkles,
 } from "lucide-react";
 import { useWebRTC, ConnectionState } from "@/hooks/useWebRTC";
 import { usePrivacyShield } from "@/hooks/usePrivacyShield";
@@ -40,6 +42,7 @@ export default function CallPage() {
     callStartedAt: string;
     durationMinutes: number;
     isAlreadyEnded: boolean;
+    isDemo?: boolean;
     callToken?: string;
     minListenerEarningInr?: number;
     maxListenerEarningInr?: number;
@@ -425,14 +428,35 @@ export default function CallPage() {
               <h3 className="text-lg font-medium text-slate-200">
                 {sessionInfo.peerNickname}
               </h3>
-              <p className="text-xs text-slate-400">
-                {connectionState === "WAITING_FOR_PEER" && "Waiting for peer to connect..."}
+              <div className="text-xs text-slate-400 space-y-2">
+                {connectionState === "WAITING_FOR_PEER" && (
+                  <div className="space-y-3">
+                    <p>Waiting for peer to connect...</p>
+                    {sessionInfo.isDemo && (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              navigator.clipboard.writeText(window.location.href);
+                              alert("Demo call link copied! Send it to a friend or open it in another browser tab to talk.");
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-medium transition-colors shadow-lg active:scale-95"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>Copy Demo Room Link</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {connectionState === "CONNECTING" && "Establishing encrypted WebRTC connection..."}
                 {connectionState === "CONNECTED" && peerMediaState.isVideoOff && "Peer has turned camera off (Audio only)"}
                 {connectionState === "RECONNECTING" && "Reconnecting signal..."}
                 {connectionState === "PEER_DISCONNECTED" && "Peer disconnected. Waiting 15s for reconnection..."}
                 {connectionState === "PERMISSION_DENIED" && errorMessage}
-              </p>
+              </div>
             </div>
           </div>
         )}

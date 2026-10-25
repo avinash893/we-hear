@@ -33,39 +33,64 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "Session not found" }, { status: 404 });
     }
 
-    const isClient = callSession.clientId === userId;
-    const isListener = callSession.listenerId === userId;
+    let activeCallSession = callSession;
+    let isClient = activeCallSession.clientId === userId;
+    let isListener = activeCallSession.listenerId === userId;
 
     if (!isClient && !isListener) {
-      return NextResponse.json({ message: "Unauthorized for this session" }, { status: 403 });
+      if (
+        !activeCallSession.listenerId &&
+        (activeCallSession.priceInr === 0 || activeCallSession.sessionCode.startsWith("room_demo_"))
+      ) {
+        // Automatically join as the peer listener in demo mode
+        activeCallSession = await prisma.callSession.update({
+          where: { id: activeCallSession.id },
+          data: {
+            listenerId: userId,
+            status: "MATCHED",
+            matchedAt: new Date(),
+          },
+          include: {
+            client: { include: { anonymousProfile: true } },
+            listener: { include: { anonymousProfile: true } },
+          },
+        });
+        isListener = true;
+      } else {
+        return NextResponse.json({ message: "Unauthorized for this session" }, { status: 403 });
+      }
     }
 
     // Identify peer's anonymous nickname (STRICT: NEVER EXPOSE EMAIL OR GOOGLE ID)
-    const peerUser = isClient ? callSession.listener : callSession.client;
-    const peerNickname = peerUser?.anonymousProfile?.nickname || "Anonymous Peer";
+    const peerUser = isClient ? activeCallSession.listener : activeCallSession.client;
+    const isDemo = activeCallSession.priceInr === 0 || activeCallSession.sessionCode.startsWith("room_demo_");
+    const peerNickname =
+      peerUser?.anonymousProfile?.nickname ||
+      (isDemo ? "Demo Peer (Waiting to connect...)" : "Anonymous Peer");
     const role = isClient ? "CLIENT" : "LISTENER";
 
     // Issue cryptographic room token for WebRTC signaling authorization
-    const callToken = generateCallToken(callSession.sessionCode, userId, role);
+    const callToken = generateCallToken(activeCallSession.sessionCode, userId, role);
 
     return NextResponse.json({
-      sessionId: callSession.id,
-      sessionCode: callSession.sessionCode,
+      sessionId: activeCallSession.id,
+      sessionCode: activeCallSession.sessionCode,
       callToken,
       role,
       peerNickname,
-      status: callSession.status,
-      callStartedAt: callSession.callStartedAt || callSession.createdAt,
+      status: activeCallSession.status,
+      isDemo,
+      callStartedAt: activeCallSession.callStartedAt || activeCallSession.createdAt,
       durationMinutes: Number(process.env.SESSION_DURATION_MINUTES || 30),
-      minListenerEarningInr: callSession.minListenerEarningInr,
-      maxListenerEarningInr: callSession.maxListenerEarningInr,
-      speakerRating: callSession.speakerRating,
-      isRated: Boolean(callSession.speakerRating),
+      minListenerEarningInr: activeCallSession.minListenerEarningInr,
+      maxListenerEarningInr: activeCallSession.maxListenerEarningInr,
+      speakerRating: activeCallSession.speakerRating,
+      isRated: Boolean(activeCallSession.speakerRating),
       isAlreadyEnded:
-        callSession.status === "CALL_COMPLETED" ||
-        callSession.status === "CALL_ENDED_BY_CLIENT" ||
-        callSession.status === "CALL_ENDED_BY_LISTENER" ||
-        callSession.status === "REFUNDED",
+        activeCallSession.status === "CALL_COMPLETED" ||
+        activeCallSession.status === "CALL_ENDED_BY_CLIENT" ||
+        activeCallSession.status === "CALL_ENDED_BY_LISTENER" ||
+        activeCallSession.status === "REFUNDED",
     });
   } catch (error: any) {
     console.error("Session info error:", error);

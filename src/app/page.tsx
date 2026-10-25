@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HeartHandshake, Headphones, ShieldCheck, Lock, UserX, Clock, ArrowRight } from "lucide-react";
+import { HeartHandshake, Headphones, ShieldCheck, Lock, UserX, Clock, ArrowRight, Sparkles } from "lucide-react";
 import EmergencyCard from "@/components/safety/EmergencyCard";
 
 export default function HomePage() {
@@ -38,6 +38,17 @@ export default function HomePage() {
           >
             <Headphones className="w-5 h-5 text-primary-700" />
             <span>I want to listen</span>
+          </Link>
+        </div>
+
+        {/* Free Demo Call Link */}
+        <div className="mt-5">
+          <Link
+            href="/talk"
+            className="inline-flex items-center gap-1.5 text-xs text-emerald-800 hover:text-emerald-950 font-medium px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 hover:border-emerald-300 transition-all shadow-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Try Free Demo Call (No payment required) →</span>
           </Link>
         </div>
 

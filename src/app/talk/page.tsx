@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { HeartHandshake, ShieldCheck, Clock, CheckCircle2, Loader2, ArrowRight, AlertCircle } from "lucide-react";
+import { HeartHandshake, ShieldCheck, Clock, CheckCircle2, Loader2, ArrowRight, AlertCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
 
@@ -12,6 +12,8 @@ export default function TalkPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [isDemoSession, setIsDemoSession] = useState(false);
   const [stage, setStage] = useState<"READY" | "PAYING" | "SEARCHING" | "MATCHED">("READY");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionCode, setSessionCode] = useState<string | null>(null);
@@ -68,6 +70,36 @@ export default function TalkPage() {
 
   const user = session.user as any;
   const nickname = user?.nickname || "Anonymous Peer";
+
+  const handleStartDemoCall = async () => {
+    setIsDemoLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/calls/create-demo", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Could not initialize demo call.");
+      }
+
+      setSessionId(data.sessionId);
+      setSessionCode(data.sessionCode);
+      setIsDemoSession(true);
+
+      if (data.matched && data.sessionCode) {
+        setStage("MATCHED");
+        router.push(`/call/${data.sessionCode}`);
+      } else {
+        setStage("SEARCHING");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to start demo call.");
+    } finally {
+      setIsDemoLoading(false);
+    }
+  };
 
   const handleStartCallRequest = async () => {
     setLoading(true);
@@ -201,9 +233,49 @@ export default function TalkPage() {
             </div>
 
             <div className="space-y-3">
+              {/* Free Demo Mode Card */}
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-left space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    Free Demo Active
+                  </span>
+                  <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full">
+                    ₹0 Free
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-900/80 leading-relaxed">
+                  Try a full 30-minute private call without paying anything. Test our encrypted WebRTC video room and talk anonymously.
+                </p>
+                <button
+                  type="button"
+                  disabled={loading || isDemoLoading}
+                  onClick={handleStartDemoCall}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-xs transition-all shadow-xs active:scale-[0.99]"
+                >
+                  {isDemoLoading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Preparing demo room...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Start Free Demo Call (No Payment)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-border"></div>
+                <span className="flex-shrink mx-3 text-[10px] uppercase font-semibold text-slate-400">or standard session</span>
+                <div className="flex-grow border-t border-border"></div>
+              </div>
+
               <button
                 type="button"
-                disabled={loading}
+                disabled={loading || isDemoLoading}
                 onClick={handleStartCallRequest}
                 className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-primary-700 hover:bg-primary-800 text-white font-medium text-sm transition-all shadow-xs active:scale-[0.99]"
               >
@@ -215,7 +287,7 @@ export default function TalkPage() {
                 ) : (
                   <>
                     <HeartHandshake className="w-4 h-4" />
-                    <span>Find Someone to Talk To (₹20)</span>
+                    <span>Find Paid Listener (₹20)</span>
                   </>
                 )}
               </button>
@@ -244,7 +316,7 @@ export default function TalkPage() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-medium border border-emerald-200">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Payment successful (₹20)</span>
+                <span>{isDemoSession ? "Free Demo Call Active (₹0)" : "Payment successful (₹20)"}</span>
               </div>
               <h2 className="text-xl font-serif text-slate-900 font-normal">
                 Finding someone who is available...
@@ -258,6 +330,22 @@ export default function TalkPage() {
               <p className="font-semibold text-slate-800">What happens next?</p>
               <p>As soon as an available listener accepts, you will be redirected automatically into your private 30-minute WebRTC video room.</p>
             </div>
+
+            {isDemoSession && sessionCode && (
+              <div className="pt-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/call/${sessionCode}`)}
+                  className="w-full py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-xs transition-colors flex items-center justify-center gap-2 shadow-xs active:scale-[0.99]"
+                >
+                  <span>Enter Demo Room Instantly</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+                <p className="text-[11px] text-slate-500">
+                  You can enter now to test camera/mic or invite a friend via link!
+                </p>
+              </div>
+            )}
 
             <div className="text-[11px] text-slate-400">
               Session ID: <span className="font-mono">{sessionId?.substring(0, 12)}...</span>
