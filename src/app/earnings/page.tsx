@@ -2,11 +2,13 @@
 
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Wallet, Clock, CheckCircle2, ShieldCheck, AlertCircle, ArrowUpRight, X } from "lucide-react";
 import Link from "next/link";
 
 export default function EarningsPage() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [data, setData] = useState<{
     availableBalanceInr: number;
     pendingBalanceInr: number;
@@ -33,10 +35,12 @@ export default function EarningsPage() {
   };
 
   useEffect(() => {
-    if (session) {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin?callbackUrl=/earnings");
+    } else if (session) {
       fetchEarnings();
     }
-  }, [session]);
+  }, [session, status, router]);
 
   const handleRequestPayout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +75,7 @@ export default function EarningsPage() {
     }
   };
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || (status === "authenticated" && loading)) {
     return (
       <div className="flex-1 flex items-center justify-center py-20 text-slate-500 text-sm">
         Loading earnings...

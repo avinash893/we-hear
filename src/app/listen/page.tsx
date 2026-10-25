@@ -38,12 +38,14 @@ export default function ListenPage() {
   };
 
   useEffect(() => {
-    if (session) {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin?callbackUrl=/listen");
+    } else if (session) {
       fetchAvailability();
     }
-  }, [session]);
+  }, [session, status, router]);
 
-  // If available, poll for incoming matches
+  // If available, poll for incoming matches in 10-second intervals (paced rate limiting)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isAvailable && !incomingMatch) {
@@ -61,7 +63,7 @@ export default function ListenPage() {
         } catch (err) {
           console.error("Match check error:", err);
         }
-      }, 3000);
+      }, 10000);
     }
     return () => clearInterval(interval);
   }, [isAvailable, incomingMatch, router]);
@@ -90,7 +92,7 @@ export default function ListenPage() {
     }
   };
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || (status === "authenticated" && loading)) {
     return (
       <div className="flex-1 flex items-center justify-center py-20 text-slate-500 text-sm">
         <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading listener dashboard...

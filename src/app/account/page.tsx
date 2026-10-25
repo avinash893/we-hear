@@ -1,14 +1,22 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { User, ShieldCheck, Trash2, EyeOff, Lock, AlertTriangle } from "lucide-react";
 import DestroyIdentityModal from "@/components/account/DestroyIdentityModal";
 import Link from "next/link";
 
 export default function AccountPage() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [isDestroyModalOpen, setIsDestroyModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin?callbackUrl=/account");
+    }
+  }, [status, router]);
 
   if (status === "loading") {
     return (

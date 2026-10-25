@@ -68,6 +68,17 @@ export default function CallPage() {
     timestamp: number;
   } | null>(null);
 
+  // 5-minute peer waiting cutoff: disconnect and notify if nobody connects in 5 minutes
+  const [peerWaitSecondsLeft, setPeerWaitSecondsLeft] = useState(5 * 60);
+  const [isNobodyOnline, setIsNobodyOnline] = useState(false);
+
+  // Redirect if unauthenticated
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      router.push(`/auth/signin?callbackUrl=/call/${sessionCode}`);
+    }
+  }, [authStatus, router, sessionCode]);
+
   const handleRecordingWarning = (warning: { deviceType: string; timestamp: number }) => {
     setRecordingDeviceAlert(warning);
   };
@@ -162,6 +173,27 @@ export default function CallPage() {
     }
   }, [connectionState, notifyDeviceDetected, remoteVideoRef]);
 
+  // 5-minute peer waiting timer: disconnect and close if nobody joins
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (connectionState === "WAITING_FOR_PEER" && !callEndedInfo.ended) {
+      timer = setInterval(() => {
+        setPeerWaitSecondsLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setIsNobodyOnline(true);
+            endCall();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setPeerWaitSecondsLeft(5 * 60);
+    }
+    return () => clearInterval(timer);
+  }, [connectionState, callEndedInfo.ended, endCall]);
+
   // Authoritative 30-minute countdown timer
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(30 * 60);
 
@@ -215,6 +247,41 @@ export default function CallPage() {
         >
           Return to Home
         </Link>
+      </div>
+    );
+  }
+
+  // 5-minute timeout cutoff: Nobody online
+  if (isNobodyOnline) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4 bg-warm-50">
+        <div className="w-full max-w-md bg-surface border border-border rounded-3xl p-8 shadow-sm text-center space-y-6 animate-in fade-in">
+          <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+            <Clock className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-1">
+            <h2 className="text-2xl font-serif text-slate-900 font-normal">Nobody is currently online</h2>
+            <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
+              We waited 5 minutes for a peer to join this room, but nobody connected. The session has been safely closed.
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-border flex flex-col gap-2.5">
+            <Link
+              href="/talk"
+              className="w-full py-3 px-4 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-xs font-semibold transition-colors"
+            >
+              Start Another Conversation
+            </Link>
+            <Link
+              href="/"
+              className="w-full py-3 px-4 rounded-xl bg-surface-muted hover:bg-warm-100 text-slate-700 text-xs font-semibold transition-colors"
+            >
+              Back to Home
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -434,7 +501,12 @@ export default function CallPage() {
               <div className="text-xs text-slate-400 space-y-2">
                 {connectionState === "WAITING_FOR_PEER" && (
                   <div className="space-y-3">
-                    <p>Waiting for peer to connect...</p>
+                    <p className="flex items-center justify-center gap-1.5">
+                      <span>Waiting for peer to connect...</span>
+                      <span className="font-mono text-emerald-400 bg-black/40 px-2 py-0.5 rounded-full border border-slate-700">
+                        {Math.floor(peerWaitSecondsLeft / 60)}:{(peerWaitSecondsLeft % 60).toString().padStart(2, "0")}
+                      </span>
+                    </p>
                     {sessionInfo.isDemo && (
                       <div>
                         <button

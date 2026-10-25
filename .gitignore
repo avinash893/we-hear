@@ -31,6 +31,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# scratch files
+scratch/
+
 # prisma sqlite fallback if used locally
 dev.db
 dev.db-journal

@@ -14,12 +14,40 @@ export default function TalkPage() {
   const [loading, setLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [isDemoSession, setIsDemoSession] = useState(false);
-  const [stage, setStage] = useState<"READY" | "PAYING" | "SEARCHING" | "MATCHED">("READY");
+  const [stage, setStage] = useState<"READY" | "PAYING" | "SEARCHING" | "MATCHED" | "NO_PEER">("READY");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionCode, setSessionCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchSecondsLeft, setSearchSecondsLeft] = useState(5 * 60); // 5-minute timeout
 
-  // Polling for match status when in SEARCHING stage
+  // Redirect if unauthenticated
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin?callbackUrl=/talk");
+    }
+  }, [status, router]);
+
+  // 5-minute search timeout: cut connection if nobody joins within 5 minutes
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (stage === "SEARCHING") {
+      timer = setInterval(() => {
+        setSearchSecondsLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setStage("NO_PEER");
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setSearchSecondsLeft(5 * 60);
+    }
+    return () => clearInterval(timer);
+  }, [stage]);
+
+  // Polling for match status in 10-second intervals (paced rate limiting)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (stage === "SEARCHING" && sessionId) {
@@ -38,7 +66,7 @@ export default function TalkPage() {
         } catch (err) {
           console.error("Polling error:", err);
         }
-      }, 3000);
+      }, 10000);
     }
     return () => clearInterval(interval);
   }, [stage, sessionId, router]);
@@ -321,8 +349,12 @@ export default function TalkPage() {
               <h2 className="text-xl font-serif text-slate-900 font-normal">
                 Finding someone who is available...
               </h2>
+              <div className="flex items-center justify-center gap-1.5 text-xs font-mono text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1 w-fit mx-auto">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Searching timeout: {Math.floor(searchSecondsLeft / 60)}:{(searchSecondsLeft % 60).toString().padStart(2, "0")}</span>
+              </div>
               <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                We are assigning an active peer listener to your private call room. You can close this page, but keeping it open is recommended.
+                We are assigning an active peer listener to your private call room. If nobody is available within 5 minutes, your request will be safely closed.
               </p>
             </div>
 
@@ -372,6 +404,52 @@ export default function TalkPage() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
             )}
+          </div>
+        )}
+
+        {/* Stage 5: Nobody Online Timeout (5-minute cutoff) */}
+        {stage === "NO_PEER" && (
+          <div className="w-full bg-surface border border-border rounded-2xl p-8 shadow-xs space-y-6 text-center animate-in fade-in">
+            <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+              <Clock className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-medium border border-amber-200">
+                Connection Closed
+              </span>
+              <h2 className="text-xl font-serif text-slate-900 font-normal">
+                Nobody is currently online
+              </h2>
+              <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
+                We searched for an available listener for 5 minutes, but everyone is currently offline or occupied.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-surface-muted border border-border text-xs text-slate-600 space-y-1 text-left">
+              <p className="font-semibold text-slate-800">What happens now?</p>
+              <p>Under our platform rules, your search session has been safely closed. You can try searching again, share a direct demo room link with a peer, or return shortly.</p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setStage("READY");
+                  setSessionId(null);
+                  setSessionCode(null);
+                }}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-primary-700 hover:bg-primary-800 text-white font-medium text-xs transition-colors shadow-xs active:scale-[0.99]"
+              >
+                Try Again
+              </button>
+              <Link
+                href="/"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-surface border border-border text-slate-700 hover:bg-warm-50 font-medium text-xs transition-colors text-center"
+              >
+                Back to Home
+              </Link>
+            </div>
           </div>
         )}
       </div>
