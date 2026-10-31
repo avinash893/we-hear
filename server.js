@@ -252,6 +252,9 @@ app.prepare().then(() => {
       }
     }
   }, 5 * 60 * 1000);
+  if (roomCleanupInterval.unref) {
+    roomCleanupInterval.unref();
+  }
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
