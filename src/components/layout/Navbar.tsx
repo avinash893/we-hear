@@ -19,8 +19,9 @@ export default function Navbar() {
               <img src="/favicon.svg" alt="We Hear Logo" className="w-8 h-8 rounded-xl shadow-xs shrink-0" />
               <span>We Hear</span>
             </Link>
-            <span className="hidden md:inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200">
-              Anonymous Peer Support
+            <span className="hidden lg:inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+              <Shield className="w-3 h-3 text-emerald-600" />
+              <span>Cloudflare Protected • E2EE</span>
             </span>
           </div>
 

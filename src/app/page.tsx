@@ -71,6 +71,18 @@ export default function HomePage() {
             <span>Human connection</span>
           </div>
         </div>
+
+        {/* Cloudflare Edge & Privacy Security Indicator */}
+        <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-3 text-[11px] text-slate-500 bg-surface px-4 py-1.5 rounded-full border border-border shadow-xs">
+          <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            Cloudflare Protected
+          </span>
+          <span className="text-slate-300">•</span>
+          <span>Zero Logging Peer WebRTC</span>
+          <span className="text-slate-300">•</span>
+          <span>End-to-End Privacy</span>
+        </div>
       </section>
 
       {/* A Safer Way to Talk Section */}
